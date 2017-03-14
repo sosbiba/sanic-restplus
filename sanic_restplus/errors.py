@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-import flask
-
-from werkzeug.exceptions import HTTPException
+from sanic import exceptions
 
 from ._http import HTTPStatus
 
@@ -27,15 +25,7 @@ def abort(code=HTTPStatus.INTERNAL_SERVER_ERROR, message=None, **kwargs):
     :param kwargs: Any additional data to pass to the error payload
     :raise HTTPException:
     '''
-    try:
-        flask.abort(code)
-    except HTTPException as e:
-        if message:
-            kwargs['message'] = str(message)
-        if kwargs:
-            e.data = kwargs
-        raise
-
+    raise exceptions.SanicException(message=message, status_code=code)
 
 class RestError(Exception):
     '''Base class for all Flask-Restplus Errors'''

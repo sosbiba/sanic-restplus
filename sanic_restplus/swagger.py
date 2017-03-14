@@ -8,13 +8,10 @@ from inspect import isclass, getdoc
 from collections import OrderedDict, Hashable
 from six import string_types, itervalues, iteritems, iterkeys
 
-from flask import current_app
-from werkzeug.routing import parse_rule
-
 from . import fields
 from .model import Model, ModelBase
 from .reqparse import RequestParser
-from .utils import merge, not_none, not_none_sorted
+from .utils import merge, not_none, not_none_sorted, parse_rule
 from ._http import HTTPStatus
 
 
@@ -36,7 +33,9 @@ PY_TYPES = {
     None: 'void'
 }
 
-RE_URL = re.compile(r'<(?:[^:<>]+:)?([^<>]+)>')
+#RE_URL = re.compile(r'<(?:[^:<>]+:)?([^<>]+)>')
+RE_URL = re.compile(r'<([^:<>]+)(?::[^:<>]+)?>')
+
 
 DEFAULT_RESPONSE_DESCRIPTION = 'Success'
 DEFAULT_RESPONSE = {'description': DEFAULT_RESPONSE_DESCRIPTION}
@@ -67,22 +66,33 @@ def extract_path_params(path):
     Extract Flask-style parameters from an URL pattern as Swagger ones.
     '''
     params = OrderedDict()
-    for converter, arguments, variable in parse_rule(path):
-        if not converter:
-            continue
-        param = {
-            'name': variable,
-            'in': 'path',
-            'required': True
-        }
-
-        if converter in PATH_TYPES:
-            param['type'] = PATH_TYPES[converter]
-        elif converter in current_app.url_map.converters:
-            param['type'] = 'string'
-        else:
-            raise ValueError('Unsupported type converter: %s' % converter)
-        params[variable] = param
+    #TODO Sanic HACK! actually parse rules.
+    #return params
+    #TODO Sanic I think sanic can only have one param per route.
+    name, _type, pattern = parse_rule(path)
+    params[name] = {
+        'name': name,
+        'in': 'path',
+        'required': True,
+        'type': _type,
+        #'pattern': pattern
+    }
+    # for converter, arguments, variable in parse_rule(path):
+    #     if not converter:
+    #         continue
+    #     param = {
+    #         'name': variable,
+    #         'in': 'path',
+    #         'required': True
+    #     }
+    #
+    #     if converter in PATH_TYPES:
+    #         param['type'] = PATH_TYPES[converter]
+    #     elif converter in current_app.url_map.converters:
+    #         param['type'] = 'string'
+    #     else:
+    #         raise ValueError('Unsupported type converter: %s' % converter)
+    #     params[variable] = param
     return params
 
 
@@ -193,6 +203,7 @@ class Swagger(object):
         return not_none(specs)
 
     def get_host(self):
+        current_app = self.api.app
         hostname = current_app.config.get('SERVER_NAME', None) or None
         if hostname and self.api.blueprint and self.api.blueprint.subdomain:
             hostname = '.'.join((self.api.blueprint.subdomain, hostname))
@@ -386,18 +397,19 @@ class Swagger(object):
             params.append(param)
 
         # Handle fields mask
-        mask = doc.get('__mask__')
-        if (mask and current_app.config['RESTPLUS_MASK_SWAGGER']):
-            param = {
-                'name': current_app.config['RESTPLUS_MASK_HEADER'],
-                'in': 'header',
-                'type': 'string',
-                'format': 'mask',
-                'description': 'An optional fields mask',
-            }
-            if isinstance(mask, string_types):
-                param['default'] = mask
-            params.append(param)
+        #TODO Sanic fields mask
+        # mask = doc.get('__mask__')
+        # if (mask and current_app.config['RESTPLUS_MASK_SWAGGER']):
+        #     param = {
+        #         'name': current_app.config['RESTPLUS_MASK_HEADER'],
+        #         'in': 'header',
+        #         'type': 'string',
+        #         'format': 'mask',
+        #         'description': 'An optional fields mask',
+        #     }
+        #     if isinstance(mask, string_types):
+        #         param['default'] = mask
+        #     params.append(param)
 
         return params
 

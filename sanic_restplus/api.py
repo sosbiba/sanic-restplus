@@ -12,17 +12,22 @@ from collections import OrderedDict
 from functools import wraps, partial
 from types import MethodType
 
-from flask import url_for, request, current_app
-from flask import make_response as original_flask_make_response
-from flask.helpers import _endpoint_from_view_func
-from flask.signals import got_request_exception
+# from flask import url_for, request, current_app
+# from flask import make_response as original_flask_make_response
+# from flask.helpers import _endpoint_from_view_func
+# from flask.signals import got_request_exception
+
+from sanic.router import RouteExists
+from sanic.response import HTTPResponse
+from sanic import exceptions
 
 from jsonschema import RefResolver
 
-from werkzeug import cached_property
-from werkzeug.datastructures import Headers
-from werkzeug.exceptions import HTTPException, MethodNotAllowed, NotFound, NotAcceptable, InternalServerError
-from werkzeug.wrappers import BaseResponse
+# from werkzeug import cached_property
+# from werkzeug.datastructures import Headers
+# from werkzeug.exceptions import HTTPException, MethodNotAllowed, NotFound, NotAcceptable, InternalServerError
+# from werkzeug.http import HTTP_STATUS_CODES
+# from werkzeug.wrappers import BaseResponse
 
 from . import apidoc
 from .mask import ParseError, MaskError
@@ -30,7 +35,7 @@ from .namespace import Namespace
 from .postman import PostmanCollectionV1
 from .resource import Resource
 from .swagger import Swagger
-from .utils import default_id, camel_to_dash, unpack
+from .utils import default_id, camel_to_dash, unpack, best_match_accept_mimetype
 from .representations import output_json
 from ._http import HTTPStatus
 
@@ -193,8 +198,9 @@ class Api(object):
         self._register_specs(self.blueprint or app)
         self._register_doc(self.blueprint or app)
 
-        app.handle_exception = partial(self.error_router, app.handle_exception)
-        app.handle_user_exception = partial(self.error_router, app.handle_user_exception)
+        #TODO Sanic fix exception handling
+        #app.handle_exception = partial(self.error_router, app.handle_exception)
+        #app.handle_user_exception = partial(self.error_router, app.handle_user_exception)
 
         if len(self.resources) > 0:
             for resource, urls, kwargs in self.resources:
@@ -224,9 +230,11 @@ class Api(object):
         return ''.join(part for part in parts if part)
 
     def _register_apidoc(self, app):
+        if not hasattr(app, 'extensions'):
+            app.extensions = {}
         conf = app.extensions.setdefault('restplus', {})
         if not conf.get('apidoc_registered', False):
-            app.register_blueprint(apidoc.apidoc)
+            app.blueprint(apidoc.apidoc)
         conf['apidoc_registered'] = True
 
     def _register_specs(self, app_or_blueprint):
@@ -242,10 +250,20 @@ class Api(object):
             self.endpoints.add(endpoint)
 
     def _register_doc(self, app_or_blueprint):
+        root_path = self.prefix or '/'
         if self._add_specs and self._doc:
-            # Register documentation before root if enabled
-            app_or_blueprint.add_url_rule(self._doc, 'doc', self.render_doc)
-        app_or_blueprint.add_url_rule(self.prefix or '/', 'root', self.render_root)
+            # app_or_blueprint.add_url_rule(self._doc, 'doc', self.render_doc)
+            app_or_blueprint.add_route(named_route_fn('doc', self.render_doc), self._doc)
+
+        if self._doc != root_path:
+            try:# app_or_blueprint.add_url_rule(self.prefix or '/', 'root', self.render_root)
+                app_or_blueprint.add_route(named_route_fn('root', self.render_root), root_path)
+
+            except RouteExists:
+                pass
+
+
+
 
     def register_resource(self, namespace, resource, *urls, **kwargs):
         endpoint = kwargs.pop('endpoint', None)
@@ -276,9 +294,10 @@ class Api(object):
 
         resource.mediatypes = self.mediatypes_method()  # Hacky
         resource.endpoint = endpoint
-        resource_func = self.output(resource.as_view(endpoint, self, *resource_class_args,
+        resource_func = self.output(resource.as_view(self, *resource_class_args,
             **resource_class_kwargs))
-
+        # hacky, we want to change the __name__ of this func to `endpoint` so it can be found with url_for.
+        resource_func.__name__ = endpoint
         for decorator in self.decorators:
             resource_func = decorator(resource_func)
 
@@ -302,7 +321,7 @@ class Api(object):
                 # If we've got no Blueprint, just build a url with no prefix
                 rule = self._complete_url(url, '')
             # Add the url to the application or blueprint
-            app.add_url_rule(rule, view_func=resource_func, **kwargs)
+            app.add_route(resource_func, rule)
 
     def output(self, resource):
         '''
@@ -312,15 +331,15 @@ class Api(object):
         :param resource: The resource as a flask view function
         '''
         @wraps(resource)
-        def wrapper(*args, **kwargs):
-            resp = resource(*args, **kwargs)
-            if isinstance(resp, BaseResponse):
+        def wrapper(request, *args, **kwargs):
+            resp = resource(request, *args, **kwargs)
+            if isinstance(resp, HTTPResponse):
                 return resp
             data, code, headers = unpack(resp)
-            return self.make_response(data, code, headers=headers)
+            return self.make_response(request, data, code, headers=headers)
         return wrapper
 
-    def make_response(self, data, *args, **kwargs):
+    def make_response(self, request, data, *args, **kwargs):
         '''
         Looks up the representation transformer for the requested media
         type, invoking the transformer to create a response object. This
@@ -331,14 +350,14 @@ class Api(object):
         :param data: Python object containing response data to be transformed
         '''
         default_mediatype = kwargs.pop('fallback_mediatype', None) or self.default_mediatype
-        mediatype = request.accept_mimetypes.best_match(
+        mediatype = best_match_accept_mimetype(request,
             self.representations,
             default=default_mediatype,
         )
         if mediatype is None:
-            raise NotAcceptable()
+            raise exceptions.SanicException("Not Acceptable", 406)
         if mediatype in self.representations:
-            resp = self.representations[mediatype](data, *args, **kwargs)
+            resp = self.representations[mediatype](request, data, *args, **kwargs)
             resp.headers['Content-Type'] = mediatype
             return resp
         elif mediatype == 'text/plain':
@@ -349,20 +368,20 @@ class Api(object):
             raise InternalServerError()
 
     def documentation(self, func):
-        '''A decorator to specify a view funtion for the documentation'''
+        '''A decorator to specify a view function for the documentation'''
         self._doc_view = func
         return func
 
-    def render_root(self):
+    def render_root(self, request):
         self.abort(HTTPStatus.NOT_FOUND)
 
-    def render_doc(self):
+    def render_doc(self, request):
         '''Override this method to customize the documentation page'''
         if self._doc_view:
             return self._doc_view()
         elif not self._doc:
             self.abort(HTTPStatus.NOT_FOUND)
-        return apidoc.ui_for(self)
+        return apidoc.ui_for(request, self)
 
     def default_endpoint(self, resource, namespace):
         '''
@@ -444,7 +463,7 @@ class Api(object):
 
         :rtype: str
         '''
-        return url_for(self.endpoint('specs'), _external=True)
+        return self.app.url_for(self.endpoint('specs'), _external=True)
 
     @property
     def base_url(self):
@@ -453,7 +472,11 @@ class Api(object):
 
         :rtype: str
         '''
-        return url_for(self.endpoint('root'), _external=True)
+        root_path = self.prefix or '/'
+        if self._doc == root_path:
+            return self.app.url_for(self.endpoint('doc'), _external=True)
+        return self.app.url_for(self.endpoint('root'), _external=True)
+
 
     @property
     def base_path(self):
@@ -462,9 +485,13 @@ class Api(object):
 
         :rtype: str
         '''
-        return url_for(self.endpoint('root'))
+        root_path = self.prefix or '/'
+        if self._doc == root_path:
+            return self.app.url_for(self.endpoint('doc'))
+        return self.app.url_for(self.endpoint('root'))
 
-    @cached_property
+    #@cached_property
+    @property
     def __schema__(self):
         '''
         The Swagger specifications/schema for this API
@@ -784,6 +811,23 @@ class SwaggerView(Resource):
     def mediatypes(self):
         return ['application/json']
 
+class named_route_fn(object):
+    __slots__ = ['__name', 'fn']
+
+    def __init__(self, name, fn):
+        self.__name = name
+        self.fn = fn
+
+    @property
+    def __name__(self):
+        return self.__name
+
+    @__name__.setter
+    def __name__(self, val):
+        self.__name = val
+
+    def __call__(self, *args, **kwargs):
+        return self.fn(*args, **kwargs)
 
 def mask_parse_error_handler(error):
     '''When a mask can't be parsed'''

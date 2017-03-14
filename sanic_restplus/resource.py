@@ -1,16 +1,41 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+from six import with_metaclass
 
-from flask import request
-from flask.views import MethodView
-from werkzeug.wrappers import BaseResponse
+# from flask import request
+# from flask.views import MethodView
+from sanic.views import HTTPMethodView
+from sanic.response import HTTPResponse
+from sanic.constants import HTTP_METHODS
+
+# from werkzeug.wrappers import BaseResponse
 
 from .model import ModelBase
 
-from .utils import unpack
+from .utils import unpack, best_match_accept_mimetype
 
 
-class Resource(MethodView):
+class MethodViewExt(HTTPMethodView):
+    methods = None
+
+class ResourceMeta(type):
+    def __new__(mcs, name, bases, d):
+        p_type = type.__new__(mcs, name, bases, d)
+        if 'methods' not in d:
+            methods = set(p_type.methods or [])
+            for m in HTTP_METHODS:
+                if m.lower() in d:
+                    methods.add(m)
+            # If we have no method at all in there we don't want to
+            # add a method list.  (This is for instance the case for
+            # the base class or another subclass of a base method view
+            # that does not introduce new methods).
+            if methods:
+                p_type.methods = sorted(methods)
+        return p_type
+
+
+class Resource(with_metaclass(ResourceMeta, MethodViewExt)):
     '''
     Represents an abstract RESTPlus resource.
 
@@ -26,11 +51,12 @@ class Resource(MethodView):
     representations = None
     method_decorators = []
 
+
     def __init__(self, api=None, *args, **kwargs):
         self.api = api
 
-    def dispatch_request(self, *args, **kwargs):
-        # Taken from flask
+    def dispatch_request(self, request, *args, **kwargs):
+
         meth = getattr(self, request.method.lower(), None)
         if meth is None and request.method == 'HEAD':
             meth = getattr(self, 'get', None)
@@ -39,25 +65,25 @@ class Resource(MethodView):
         for decorator in self.method_decorators:
             meth = decorator(meth)
 
-        self.validate_payload(meth)
+        self.validate_payload(request, meth)
 
         resp = meth(*args, **kwargs)
 
-        if isinstance(resp, BaseResponse):
+        if isinstance(resp, HTTPResponse):
             return resp
 
         representations = self.representations or {}
 
-        mediatype = request.accept_mimetypes.best_match(representations, default=None)
+        mediatype = best_match_accept_mimetype(request, representations, default=None)
         if mediatype in representations:
-            data, code, headers = unpack(resp)
-            resp = representations[mediatype](data, code, headers)
-            resp.headers['Content-Type'] = mediatype
-            return resp
+             data, code, headers = unpack(resp)
+             resp = representations[mediatype](data, code, headers)
+             resp.headers['Content-Type'] = mediatype
+             return resp
 
         return resp
 
-    def __validate_payload(self, expect, collection=False):
+    def __validate_payload(self, request, expect, collection=False):
         '''
         :param ModelBase expect: the expected model for the input payload
         :param bool collection: False if a single object of a resource is
@@ -72,7 +98,7 @@ class Resource(MethodView):
         else:
             expect.validate(data, self.api.refresolver, self.api.format_checker)
 
-    def validate_payload(self, func):
+    def validate_payload(self, request, func):
         '''Perform a payload validation on expected model if necessary'''
         if getattr(func, '__apidoc__', False) is not False:
             doc = func.__apidoc__
@@ -83,6 +109,6 @@ class Resource(MethodView):
                     # TODO: handle third party handlers
                     if isinstance(expect, list) and len(expect) == 1:
                         if isinstance(expect[0], ModelBase):
-                            self.__validate_payload(expect[0], collection=True)
+                            self.__validate_payload(request, expect[0], collection=True)
                     if isinstance(expect, ModelBase):
-                        self.__validate_payload(expect, collection=False)
+                        self.__validate_payload(request, expect, collection=False)

@@ -49,6 +49,9 @@ histograms/
 .project
 .pydevproject
 
+#idea
+.idea
+
 # Rope
 .ropeproject
 
@@ -60,5 +63,5 @@ histograms/
 doc/_build/
 
 # Specifics
-flask_restplus/static
+sanic_restplus/static
 node_modules

@@ -83,7 +83,7 @@ setup(
     license='MIT',
     use_2to3=True,
     zip_safe=False,
-    keywords='flask restplus rest api swagger openapi',
+    keywords='sanic restplus rest api swagger openapi',
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Programming Language :: Python',

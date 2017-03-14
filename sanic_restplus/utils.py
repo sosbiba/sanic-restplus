@@ -6,9 +6,15 @@ import re
 from collections import OrderedDict
 from copy import deepcopy
 from six import iteritems
-
 from ._http import HTTPStatus
 
+#copied from sanic router
+REGEX_TYPES = {
+    'string': (str, r'[^/]+'),
+    'int': (int, r'\d+'),
+    'number': (float, r'[0-9\\.]+'),
+    'alpha': (str, r'[A-Za-z]+'),
+}
 
 FIRST_CAP_RE = re.compile('(.)([A-Z][a-z]+)')
 ALL_CAP_RE = re.compile('([a-z0-9])([A-Z])')
@@ -116,3 +122,49 @@ def unpack(response, default_code=HTTPStatus.OK):
         return data, code or default_code, headers
     else:
         raise ValueError('Too many response values')
+
+
+def best_match_accept_mimetype(request, representations, default=None):
+    if representations is None or len(representations) < 1:
+        return default
+    try:
+        accept_types = request.headers.get('accept', None)
+        if accept_types is None:
+            return default
+        split_types = str(accept_types).split(',')
+        for accept_type in split_types:
+            if accept_type in representations:
+                return accept_type
+        for accept_type in split_types:
+            type_part = str(accept_type).split(';', 1)[0]
+            if type_part in representations:
+                return type_part
+    except (AttributeError, KeyError):
+        return default
+
+def parse_rule(parameter_string):
+    """Parse a parameter string into its constituent name, type, and
+    pattern
+
+    For example:
+    `parse_parameter_string('<param_one:[A-z]>')` ->
+        ('param_one', str, '[A-z]')
+
+    :param parameter_string: String to parse
+    :return: tuple containing
+        (parameter_name, parameter_type, parameter_pattern)
+    """
+    # We could receive NAME or NAME:PATTERN
+    if str(parameter_string).startswith('/'):
+        parameter_string = parameter_string[1:]
+    parameter_string = str(parameter_string).strip('<>')
+    name = parameter_string
+    pattern = 'string'
+    if ':' in parameter_string:
+        name, pattern = parameter_string.split(':', 1)
+
+    default = (str, pattern)
+    # Pull from pre-configured types
+    _type, pattern = REGEX_TYPES.get(pattern, default)
+
+    return name, _type, pattern
