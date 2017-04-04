@@ -112,16 +112,16 @@ With Sanic-Restplus, you only import the api instance to route and document your
 
         @ns.doc('list_todos')
         @ns.marshal_list_with(todo)
-        def get(self, request):
+        async def get(self, request):
             '''List all tasks'''
             return DAO.todos
 
         @ns.doc('create_todo')
         @ns.expect(todo)
         @ns.marshal_with(todo, code=201)
-        def post(self, request):
+        async def post(self, request):
             '''Create a new task'''
-            return DAO.create(api.payload), 201
+            return DAO.create(request.json), 201
 
 
     @ns.route('/<id:int>')
@@ -132,22 +132,22 @@ With Sanic-Restplus, you only import the api instance to route and document your
 
         @ns.doc('get_todo')
         @ns.marshal_with(todo)
-        def get(self, request, id):
+        async def get(self, request, id):
             '''Fetch a given resource'''
             return DAO.get(id)
 
         @ns.doc('delete_todo')
         @ns.response(204, 'Todo deleted')
-        def delete(self, request, id):
+        async def delete(self, request, id):
             '''Delete a task given its identifier'''
             DAO.delete(id)
             return '', 204
 
         @ns.expect(todo)
         @ns.marshal_with(todo)
-        def put(self, request, id):
+        async def put(self, request, id):
             '''Update a task given its identifier'''
-            return DAO.update(id, api.payload)
+            return DAO.update(id, request.json)
 
 
     if __name__ == '__main__':

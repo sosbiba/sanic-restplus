@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
+import asyncio
 import difflib
 import inspect
 import logging
@@ -334,8 +335,10 @@ class Api(object):
         :param resource: The resource as a flask view function
         '''
         @wraps(resource)
-        def wrapper(request, *args, **kwargs):
+        async def wrapper(request, *args, **kwargs):
             resp = resource(request, *args, **kwargs)
+            while asyncio.iscoroutine(resp):
+                resp = await resp
             if isinstance(resp, HTTPResponse):
                 return resp
             data, code, headers = unpack(resp)
