@@ -2,7 +2,6 @@
 from __future__ import unicode_literals
 
 from datetime import timedelta
-from flask import make_response, request, current_app
 from functools import update_wrapper
 
 
@@ -12,6 +11,7 @@ def crossdomain(origin=None, methods=None, headers=None, expose_headers=None,
     """
     http://flask.pocoo.org/snippets/56/
     """
+    raise RuntimeError("Cors and Crossdomain are not supported in Sanic-RestPlus, use Sanic-CORS instead.")
     if methods is not None:
         methods = ', '.join(sorted(x.upper() for x in methods))
     if headers is not None and not isinstance(headers, str):

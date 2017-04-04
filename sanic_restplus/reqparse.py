@@ -6,7 +6,6 @@ import six
 
 from collections import Hashable
 from copy import deepcopy
-from flask import current_app, request
 
 from werkzeug.datastructures import MultiDict, FileStorage
 from werkzeug import exceptions
@@ -192,7 +191,12 @@ class Argument(object):
             dict with the name of the argument and the error message to be
             bundled
         '''
-        bundle_errors = current_app.config.get('BUNDLE_ERRORS', False) or bundle_errors
+
+        try:
+            bundle_errors = request.app.config.get('BUNDLE_ERRORS', False) or bundle_errors
+        except AttributeError:
+            bundle_errors = bundle_errors
+
         source = self.source(request)
 
         results = []
@@ -336,7 +340,7 @@ class RequestParser(object):
 
         return self
 
-    def parse_args(self, req=None, strict=False):
+    def parse_args(self, req, strict=False):
         '''
         Parse all arguments from the provided request and return the results as a ParseResult
 
@@ -344,9 +348,6 @@ class RequestParser(object):
         :return: the parsed results as :class:`ParseResult` (or any class defined as :attr:`result_class`)
         :rtype: ParseResult
         '''
-        if req is None:
-            req = request
-
         result = self.result_class()
 
         # A record of arguments not yet parsed; as each is found

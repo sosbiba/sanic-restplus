@@ -4,9 +4,7 @@ from __future__ import unicode_literals
 import inspect
 import six
 import warnings
-
-from flask.views import http_method_funcs
-
+from sanic.constants import HTTP_METHODS
 from .errors import abort
 from .marshalling import marshal, marshal_with
 from .model import Model, SchemaModel
@@ -94,7 +92,7 @@ class Namespace(object):
             return
         unshortcut_params_description(doc)
         handle_deprecations(doc)
-        for http_method in http_method_funcs:
+        for http_method in {str(m).lower() for m in HTTP_METHODS}:
             if http_method in doc:
                 if doc[http_method] is False:
                     continue

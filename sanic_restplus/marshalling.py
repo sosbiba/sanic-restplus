@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
+import asyncio
 from collections import OrderedDict
 from functools import wraps
-
-from flask import request, current_app, has_app_context
 
 from .mask import Mask, apply as apply_mask
 from .utils import unpack
@@ -116,12 +115,15 @@ class marshal_with(object):
 
     def __call__(self, f):
         @wraps(f)
-        def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs):
             resp = f(*args, **kwargs)
             mask = self.mask
-            if has_app_context():
-                mask_header = current_app.config['RESTPLUS_MASK_HEADER']
-                mask = request.headers.get(mask_header) or mask
+            # TODO Sanic : Fix masking (needs app_context)
+            #if has_app_context():
+            #    mask_header = current_app.config['RESTPLUS_MASK_HEADER']
+            #    mask = request.headers.get(mask_header) or mask
+            while asyncio.iscoroutine(resp):
+                resp = await resp
             if isinstance(resp, tuple):
                 data, code, headers = unpack(resp)
                 return marshal(data, self.fields, self.envelope, self.skip_none, mask), code, headers
@@ -155,9 +157,10 @@ class marshal_with_field(object):
 
     def __call__(self, f):
         @wraps(f)
-        def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs):
             resp = f(*args, **kwargs)
-
+            while asyncio.iscoroutine(resp):
+                resp = await resp
             if isinstance(resp, tuple):
                 data, code, headers = unpack(resp)
                 return self.field.format(data), code, headers
