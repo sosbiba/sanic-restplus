@@ -1,5 +1,5 @@
 ==============
-Flask RestPlus
+Sanic RestPlus
 ==============
 
 .. image:: https://secure.travis-ci.org/noirbizarre/flask-restplus.svg?branch=master
@@ -21,9 +21,9 @@ Flask RestPlus
    :alt: Join the chat at https://gitter.im/noirbizarre/flask-restplus
    :target: https://gitter.im/noirbizarre/flask-restplus?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge
 
-Flask-RESTPlus is an extension for `Flask`_ that adds support for quickly building REST APIs.
-Flask-RESTPlus encourages best practices with minimal setup.
-If you are familiar with Flask, Flask-RESTPlus should be easy to pick up.
+Sanic-RESTPlus is an extension for `Sanic`_ that adds support for quickly building REST APIs.
+Sanic-RESTPlus encourages best practices with minimal setup.
+If you are familiar with Sanic, Sanic-RESTPlus should be easy to pick up.
 It provides a coherent collection of decorators and tools to describe your API
 and expose its documentation properly using `Swagger`_.
 
@@ -31,39 +31,39 @@ and expose its documentation properly using `Swagger`_.
 Compatibility
 =============
 
-Flask-RestPlus requires Python 2.7 or 3.4+.
+Sanic-RestPlus requires Python 3.5+.
 
 
 Installation
 ============
 
-You can install Flask-Restplus with pip:
+You can install Sanic-Restplus with pip:
 
 .. code-block:: console
 
-    $ pip install flask-restplus
+    $ pip install sanic-restplus
 
 or with easy_install:
 
 .. code-block:: console
 
-    $ easy_install flask-restplus
+    $ easy_install sanic-restplus
 
 
 Quick start
 ===========
 
-With Flask-Restplus, you only import the api instance to route and document your endpoints.
+With Sanic-Restplus, you only import the api instance to route and document your endpoints.
 
 .. code-block:: python
 
-    from flask import Flask
-    from flask_restplus import Api, Resource, fields
+    from sanic import Sanic
+    from sanic_restplus import Api, Resource, fields
 
-    app = Flask(__name__)
+    app = Sanic(__name__)
     api = Api(app, version='1.0', title='TodoMVC API',
-        description='A simple TodoMVC API',
-    )
+              description='A simple TodoMVC API',
+              )
 
     ns = api.namespace('todos', description='TODO operations')
 
@@ -109,41 +109,43 @@ With Flask-Restplus, you only import the api instance to route and document your
     @ns.route('/')
     class TodoList(Resource):
         '''Shows a list of all todos, and lets you POST to add new tasks'''
+
         @ns.doc('list_todos')
         @ns.marshal_list_with(todo)
-        def get(self):
+        def get(self, request):
             '''List all tasks'''
             return DAO.todos
 
         @ns.doc('create_todo')
         @ns.expect(todo)
         @ns.marshal_with(todo, code=201)
-        def post(self):
+        def post(self, request):
             '''Create a new task'''
             return DAO.create(api.payload), 201
 
 
-    @ns.route('/<int:id>')
+    @ns.route('/<id:int>')
     @ns.response(404, 'Todo not found')
     @ns.param('id', 'The task identifier')
     class Todo(Resource):
         '''Show a single todo item and lets you delete them'''
+
         @ns.doc('get_todo')
         @ns.marshal_with(todo)
-        def get(self, id):
+        def get(self, request, id):
             '''Fetch a given resource'''
             return DAO.get(id)
 
         @ns.doc('delete_todo')
         @ns.response(204, 'Todo deleted')
-        def delete(self, id):
+        def delete(self, request, id):
             '''Delete a task given its identifier'''
             DAO.delete(id)
             return '', 204
 
         @ns.expect(todo)
         @ns.marshal_with(todo)
-        def put(self, id):
+        def put(self, request, id):
             '''Update a task given its identifier'''
             return DAO.update(id, api.payload)
 

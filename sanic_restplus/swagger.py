@@ -60,7 +60,7 @@ def extract_path(path):
     '''
     return RE_URL.sub(r'{\1}', path)
 
-
+parameter_pattern = re.compile(r'<(.+?)>')
 def extract_path_params(path):
     '''
     Extract Flask-style parameters from an URL pattern as Swagger ones.
@@ -69,12 +69,16 @@ def extract_path_params(path):
     #TODO Sanic HACK! actually parse rules.
     #return params
     #TODO Sanic I think sanic can only have one param per route.
-    name, _type, pattern = parse_rule(path)
-    params[name] = {
-        'name': name,
-        'in': 'path',
-        'required': True,
-        'type': _type,
+    matches = parameter_pattern.findall(path)
+    if matches is None or len(matches) < 1:
+        return params
+    for m in matches:
+        name, _type, pattern = parse_rule(m)
+        params[name] = {
+            'name': name,
+            'in': 'path',
+            'required': True,
+            'type': _type,
         #'pattern': pattern
     }
     # for converter, arguments, variable in parse_rule(path):
