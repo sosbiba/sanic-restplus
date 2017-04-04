@@ -124,18 +124,25 @@ def unpack(response, default_code=HTTPStatus.OK):
         raise ValueError('Too many response values')
 
 
+def get_accept_mimetypes(request):
+    accept_types = request.headers.get('accept', None)
+    if accept_types is None:
+        return {}
+    split_types = str(accept_types).split(',')
+    return {(s, 1): s for s in split_types}
+
+
 def best_match_accept_mimetype(request, representations, default=None):
     if representations is None or len(representations) < 1:
         return default
     try:
-        accept_types = request.headers.get('accept', None)
-        if accept_types is None:
+        accept_mimetypes = get_accept_mimetypes(request)
+        if accept_mimetypes is None or len(accept_mimetypes) < 1:
             return default
-        split_types = str(accept_types).split(',')
-        for accept_type in split_types:
+        for accept_type, qual in accept_mimetypes:
             if accept_type in representations:
                 return accept_type
-        for accept_type in split_types:
+        for accept_type, qual in accept_mimetypes:
             type_part = str(accept_type).split(';', 1)[0]
             if type_part in representations:
                 return type_part

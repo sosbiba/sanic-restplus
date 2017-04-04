@@ -18,8 +18,8 @@ from types import MethodType
 # from flask.signals import got_request_exception
 
 from sanic.router import RouteExists
-from sanic.response import HTTPResponse
-from sanic import exceptions
+from sanic.response import HTTPResponse, text
+from sanic import exceptions, Blueprint
 
 from jsonschema import RefResolver
 
@@ -35,7 +35,7 @@ from .namespace import Namespace
 from .postman import PostmanCollectionV1
 from .resource import Resource
 from .swagger import Swagger
-from .utils import default_id, camel_to_dash, unpack, best_match_accept_mimetype
+from .utils import default_id, camel_to_dash, unpack, best_match_accept_mimetype, get_accept_mimetypes
 from .representations import output_json
 from ._http import HTTPStatus
 
@@ -65,7 +65,7 @@ class Api(object):
         - The API root/documentation will be ``{endpoint}.root``
         - A resource registered as 'resource' will be available as ``{endpoint}.resource``
 
-    :param flask.Flask|flask.Blueprint app: the Flask application object or a Blueprint
+    :param sanic.Sanic|sanic.Blueprint app: the Flask application object or a Blueprint
     :param str version: The API version (used in Swagger documentation)
     :param str title: The API title (used in Swagger documentation)
     :param str description: The API description (used in Swagger documentation)
@@ -161,7 +161,7 @@ class Api(object):
         >>> api = Api()
         >>> api.init_app(app)
 
-        :param flask.Flask app: the Flask application object
+        :param sanic.Sanic app: the Flask application object
         :param str title: The API title (used in Swagger documentation)
         :param str description: The API description (used in Swagger documentation)
         :param str terms_url: The API terms page URL (used in Swagger documentation)
@@ -182,6 +182,9 @@ class Api(object):
 
         # If app is a blueprint, defer the initialization
         try:
+            if isinstance(app, Blueprint):
+                raise RuntimeError("As of Sanic 0.4.1, you cannot use Sanic restplus on a Blueprint. This will likely "
+                                   "change in the future.")
             app.record(self._deferred_blueprint_init)
         # Flask.Blueprint has a 'record' attribute, Flask.Api does not
         except AttributeError:
@@ -191,9 +194,9 @@ class Api(object):
 
     def _init_app(self, app):
         '''
-        Perform initialization actions with the given :class:`flask.Flask` object.
+        Perform initialization actions with the given :class:`sanic.Sanic` object.
 
-        :param flask.Flask app: The flask application object
+        :param sanic.Sanic app: The flask application object
         '''
         self._register_specs(self.blueprint or app)
         self._register_doc(self.blueprint or app)
@@ -361,11 +364,11 @@ class Api(object):
             resp.headers['Content-Type'] = mediatype
             return resp
         elif mediatype == 'text/plain':
-            resp = original_flask_make_response(str(data), *args, **kwargs)
+            resp = text(str(data), *args, **kwargs)
             resp.headers['Content-Type'] = 'text/plain'
             return resp
         else:
-            raise InternalServerError()
+            raise exceptions.ServerError()
 
     def documentation(self, func):
         '''A decorator to specify a view function for the documentation'''
@@ -575,15 +578,15 @@ class Api(object):
 
     def error_router(self, original_handler, e):
         '''
-        This function decides whether the error occured in a flask-restplus
-        endpoint or not. If it happened in a flask-restplus endpoint, our
+        This function decides whether the error occurred in a sanic-restplus
+        endpoint or not. If it happened in a sanic-restplus endpoint, our
         handler will be dispatched. If it happened in an unrelated view, the
         app's original error handler will be dispatched.
-        In the event that the error occurred in a flask-restplus endpoint but
+        In the event that the error occurred in a sanic-restplus endpoint but
         the local handler can't resolve the situation, the router will fall
         back onto the original_handler as last resort.
 
-        :param function original_handler: the original Flask error handler for the app
+        :param function original_handler: the original Sanic error handler for the app
         :param Exception e: the exception raised while handling the request
         '''
         if self._has_fr_route():
@@ -680,10 +683,11 @@ class Api(object):
         '''
         return PostmanCollectionV1(self, swagger=swagger).as_dict(urlvars=urlvars)
 
-    @property
-    def payload(self):
-        '''Store the input payload in the current request context'''
-        return request.get_json()
+    # TODO: Sanic, payload (as a property) cannot see the request.
+    #@property
+    #def payload(self):
+    #    '''Store the input payload in the current request context'''
+    #    return request.get_json()
 
     @property
     def refresolver(self):
@@ -723,10 +727,10 @@ class Api(object):
     def _deferred_blueprint_init(self, setup_state):
         '''
         Synchronize prefix between blueprint/api and registration options, then
-        perform initialization with setup_state.app :class:`flask.Flask` object.
+        perform initialization with setup_state.app :class:`sanic.Sanic` object.
         When a :class:`flask_restplus.Api` object is initialized with a blueprint,
         this method is recorded on the blueprint to be run when the blueprint is later
-        registered to a :class:`flask.Flask` object.  This method also monkeypatches
+        registered to a :class:`sanic.Sanic` object.  This method also monkeypatches
         BlueprintSetupState.add_url_rule with _blueprint_setup_add_url_rule_patch.
 
         :param setup_state: The setup state object passed to deferred functions
@@ -746,11 +750,12 @@ class Api(object):
 
     def mediatypes_method(self):
         '''Return a method that returns a list of mediatypes'''
-        return lambda resource_cls: self.mediatypes() + [self.default_mediatype]
+        return lambda resource_cls, request:\
+            self.mediatypes(request) + [self.default_mediatype]
 
-    def mediatypes(self):
+    def mediatypes(self, request):
         '''Returns a list of requested mediatypes sent in the Accept header'''
-        return [h for h, q in sorted(request.accept_mimetypes,
+        return [h for h, q in sorted(get_accept_mimetypes(request),
                                      key=operator.itemgetter(1), reverse=True)]
 
     def representation(self, mediatype):
@@ -799,12 +804,12 @@ class Api(object):
         endpoint = resource.endpoint
         if self.blueprint:
             endpoint = '{0}.{1}'.format(self.blueprint.name, endpoint)
-        return url_for(endpoint, **values)
+        return self.app.url_for(endpoint, **values)
 
 
 class SwaggerView(Resource):
     '''Render the Swagger specifications as JSON'''
-    def get(self):
+    def get(self, request):
         schema = self.api.__schema__
         return schema, HTTPStatus.INTERNAL_SERVER_ERROR if 'error' in schema else HTTPStatus.OK
 

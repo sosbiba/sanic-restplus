@@ -67,7 +67,7 @@ class Resource(with_metaclass(ResourceMeta, MethodViewExt)):
 
         self.validate_payload(request, meth)
 
-        resp = meth(*args, **kwargs)
+        resp = meth(request, *args, **kwargs)
 
         if isinstance(resp, HTTPResponse):
             return resp

@@ -1,14 +1,25 @@
+import operator
+
 from sanic import Sanic
 from sanic import response
-from sanic_restplus import Resource, Api
+from sanic_restplus import Resource, Api, fields
+from sanic_restplus.utils import get_accept_mimetypes
+
+from flask import Request
 
 app = Sanic(__name__)
+
 api = Api(app)
 
 todos = {}
 
 
-@api.route('/<todo_id:[A-z0-9]>')
+resource_fields = api.model('Resource', {
+    'data': fields.String,
+})
+
+@api.route('/<todo_id:[A-z0-9]+>')
+@api.doc(params={'todo_id': 'A TODO ID'})
 class TodoSimple(Resource):
     """
     You can try this example as follow:
@@ -34,7 +45,9 @@ class TodoSimple(Resource):
     def get(self, request, todo_id):
         return {todo_id: todos[todo_id]}
 
+    @api.expect(resource_fields)
     def put(self, request, todo_id):
+
         todos[todo_id] = request.form['data']
         return {todo_id: todos[todo_id]}
 
