@@ -160,7 +160,7 @@ Documentation
 =============
 
 The documentation is hosted `on Read the Docs <http://flask-restplus.readthedocs.io/en/latest/>`_
+That is the Flask RestPlus documentation, the Sanic-Restplus docs are not converted yet.
 
-
-.. _Flask: http://flask.pocoo.org/
+.. _Sanic: https://github.com/channelcat/sanic
 .. _Swagger: http://swagger.io/
