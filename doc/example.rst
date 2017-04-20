@@ -61,16 +61,16 @@ Here is a full example of a `TodoMVC <http://todomvc.com/>`_ API.
         '''Shows a list of all todos, and lets you POST to add new tasks'''
         @ns.doc('list_todos')
         @ns.marshal_list_with(todo)
-        def get(self):
+        def get(self, request):
             '''List all tasks'''
             return DAO.todos
 
         @ns.doc('create_todo')
         @ns.expect(todo)
         @ns.marshal_with(todo, code=201)
-        def post(self):
+        def post(self, request):
             '''Create a new task'''
-            return DAO.create(api.payload), 201
+            return DAO.create(api.payload(request)), 201
 
 
     @ns.route('/<int:id>')
@@ -80,22 +80,22 @@ Here is a full example of a `TodoMVC <http://todomvc.com/>`_ API.
         '''Show a single todo item and lets you delete them'''
         @ns.doc('get_todo')
         @ns.marshal_with(todo)
-        def get(self, id):
+        def get(self, request, id):
             '''Fetch a given resource'''
             return DAO.get(id)
 
         @ns.doc('delete_todo')
         @ns.response(204, 'Todo deleted')
-        def delete(self, id):
+        def delete(self, request, id):
             '''Delete a task given its identifier'''
             DAO.delete(id)
             return '', 204
 
         @ns.expect(todo)
         @ns.marshal_with(todo)
-        def put(self, id):
+        def put(self, request, id):
             '''Update a task given its identifier'''
-            return DAO.update(id, api.payload)
+            return DAO.update(id, api.payload(request))
 
 
     if __name__ == '__main__':

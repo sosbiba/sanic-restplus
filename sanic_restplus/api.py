@@ -18,9 +18,13 @@ from types import MethodType
 # from flask.helpers import _endpoint_from_view_func
 # from flask.signals import got_request_exception
 
-from sanic.router import RouteExists
-from sanic.response import HTTPResponse, text
+from sanic.router import RouteExists, url_hash
+from sanic.response import HTTPResponse, text, COMMON_STATUS_CODES, ALL_STATUS_CODES
+from sanic.handlers import ErrorHandler
+from sanic.exceptions import SanicException, InvalidUsage, NotFound
+from sanic.server import CIDict
 from sanic import exceptions, Blueprint
+
 
 from jsonschema import RefResolver
 
@@ -55,7 +59,7 @@ class Api(object):
     The main entry point for the application.
     You need to initialize it with a Flask Application: ::
 
-    >>> app = Flask(__name__)
+    >>> app = Sanic(__name__)
     >>> api = Api(app)
 
     Alternatively, you can use :meth:`init_app` to set the Flask application
@@ -156,9 +160,9 @@ class Api(object):
 
     def init_app(self, app, **kwargs):
         '''
-        Allow to lazy register the API on a Flask application::
+        Allow to lazy register the API on a Sanic application::
 
-        >>> app = Flask(__name__)
+        >>> app = Sanic(__name__)
         >>> api = Api()
         >>> api.init_app(app)
 
@@ -171,6 +175,8 @@ class Api(object):
         :param str license_url: The license page URL (used in Swagger documentation)
 
         '''
+        if self.app is None:
+            self.app = app
         self.title = kwargs.get('title', self.title)
         self.description = kwargs.get('description', self.description)
         self.terms_url = kwargs.get('terms_url', self.terms_url)
@@ -203,7 +209,7 @@ class Api(object):
         self._register_doc(self.blueprint or app)
 
         #TODO Sanic fix exception handling
-        #app.handle_exception = partial(self.error_router, app.handle_exception)
+        app.error_handler = ApiErrorHandler(app.error_handler, self)
         #app.handle_user_exception = partial(self.error_router, app.handle_user_exception)
 
         if len(self.resources) > 0:
@@ -371,7 +377,7 @@ class Api(object):
             resp.headers['Content-Type'] = 'text/plain'
             return resp
         else:
-            raise exceptions.ServerError()
+            raise exceptions.ServerError(None)
 
     def documentation(self, func):
         '''A decorator to specify a view function for the documentation'''
@@ -469,8 +475,11 @@ class Api(object):
 
         :rtype: str
         '''
-        return self.app.url_for(self.endpoint('specs'), _external=True)
-
+        try:
+            specs_url = self.app.url_for(self.endpoint('specs'), _external=True)
+        except (AttributeError, KeyError):
+            raise RuntimeError("The API object does not have an `app` assigned.")
+        return specs_url
     @property
     def base_url(self):
         '''
@@ -479,9 +488,14 @@ class Api(object):
         :rtype: str
         '''
         root_path = self.prefix or '/'
-        if self._doc == root_path:
-            return self.app.url_for(self.endpoint('doc'), _external=True)
-        return self.app.url_for(self.endpoint('root'), _external=True)
+        try:
+            if self._doc == root_path:
+                base_url = self.app.url_for(self.endpoint('doc'), _external=True)
+            else:
+                base_url = self.app.url_for(self.endpoint('root'), _external=True)
+        except (AttributeError, KeyError):
+            raise RuntimeError("The API object does not have an `app` assigned.")
+        return base_url
 
 
     @property
@@ -492,9 +506,14 @@ class Api(object):
         :rtype: str
         '''
         root_path = self.prefix or '/'
-        if self._doc == root_path:
-            return self.app.url_for(self.endpoint('doc'))
-        return self.app.url_for(self.endpoint('root'))
+        try:
+            if self._doc == root_path:
+                base_url = self.app.url_for(self.endpoint('doc'))
+            else:
+                base_url = self.app.url_for(self.endpoint('root'))
+        except (AttributeError, KeyError):
+            raise RuntimeError("The API object does not have an `app` assigned.")
+        return base_url
 
     #@cached_property
     @property
@@ -544,62 +563,87 @@ class Api(object):
                 return False
         return endpoint in self.endpoints
 
-    def _should_use_fr_error_handler(self):
-        '''
-        Determine if error should be handled with FR or default Flask
+    @staticmethod
+    def _dummy_router_get(router, method, request):
+        url = request.path
+        route = router.routes_static.get(url)
+        method_not_supported = InvalidUsage(
+            'Method {} not allowed for URL {}'.format(
+                method, url), status_code=405)
+        if route:
+            if route.methods and method not in route.methods:
+                method_not_supported.valid_methods = route.methods
+                raise method_not_supported
+            match = route.pattern.match(url)
+        else:
+            route_found = False
+            # Move on to testing all regex routes
+            for route in router.routes_dynamic[url_hash(url)]:
+                match = route.pattern.match(url)
+                route_found |= match is not None
+                # Do early method checking
+                if match and method in route.methods:
+                    break
+            else:
+                # Lastly, check against all regex routes that cannot be hashed
+                for route in router.routes_always_check:
+                    match = route.pattern.match(url)
+                    route_found |= match is not None
+                    # Do early method checking
+                    if match and method in route.methods:
+                        break
+                else:
+                    # Route was found but the methods didn't match
+                    if route_found:
+                        method_not_supported.valid_methods = route.methods
+                        raise method_not_supported
+                    raise NotFound('Requested URL {} not found'.format(url))
 
-        The goal is to return Flask error handlers for non-FR-related routes,
-        and FR errors (with the correct media type) for FR endpoints. This
+        return route
+
+    def _should_use_fr_error_handler(self, request):
+        '''
+        Determine if error should be handled with Sanic-Restplus or default Sanic
+
+        The goal is to return Sanic error handlers for non-SR-related routes,
+        and SR errors (with the correct media type) for SR endpoints. This
         method currently handles 404 and 405 errors.
 
         :return: bool
         '''
-        adapter = current_app.create_url_adapter(request)
-
+        app = request.app
         try:
-            adapter.match()
-        except MethodNotAllowed as e:
+            return self._dummy_router_get(app.router, request.method, request)
+        except InvalidUsage as e:
             # Check if the other HTTP methods at this url would hit the Api
-            valid_route_method = e.valid_methods[0]
-            rule, _ = adapter.match(method=valid_route_method, return_rule=True)
-            return self.owns_endpoint(rule.endpoint)
+            try:
+                try_route_method = next(iter(e.valid_methods))
+            except (AttributeError, KeyError):
+                if request.method == "GET":
+                    try_route_method = "POST"
+                else:
+                    try_route_method = "GET"
+            route = self._dummy_router_get(app.router, try_route_method, request)
+            return self.owns_endpoint(route.name)
         except NotFound:
             return self.catch_all_404s
         except Exception:
-            # Werkzeug throws other kinds of exceptions, such as Redirect
+            # Other stuff throws other kinds of exceptions, such as Redirect
             pass
 
-    def _has_fr_route(self):
+    def _has_fr_route(self, request):
         '''Encapsulating the rules for whether the request was to a Flask endpoint'''
         # 404's, 405's, which might not have a url_rule
-        if self._should_use_fr_error_handler():
+        route = self._should_use_fr_error_handler(request)
+        if route is True:
             return True
         # for all other errors, just check if FR dispatched the route
-        if not request.url_rule:
+        if not route or not route.handler or not route.name:
             return False
-        return self.owns_endpoint(request.url_rule.endpoint)
+        return self.owns_endpoint(route.name)
 
-    def error_router(self, original_handler, e):
-        '''
-        This function decides whether the error occurred in a sanic-restplus
-        endpoint or not. If it happened in a sanic-restplus endpoint, our
-        handler will be dispatched. If it happened in an unrelated view, the
-        app's original error handler will be dispatched.
-        In the event that the error occurred in a sanic-restplus endpoint but
-        the local handler can't resolve the situation, the router will fall
-        back onto the original_handler as last resort.
 
-        :param function original_handler: the original Sanic error handler for the app
-        :param Exception e: the exception raised while handling the request
-        '''
-        if self._has_fr_route():
-            try:
-                return self.handle_error(e)
-            except Exception:
-                pass  # Fall through to original handler
-        return original_handler(e)
-
-    def handle_error(self, e):
+    def handle_error(self, request, e):
         '''
         Error handler for the API transforms a raised exception into a Flask response,
         with the appropriate HTTP status code and body.
@@ -607,26 +651,35 @@ class Api(object):
         :param Exception e: the raised Exception object
 
         '''
-        got_request_exception.send(current_app._get_current_object(), exception=e)
-
-        headers = Headers()
+        # todo: sanic: wtf is this?
+        #got_request_exception.send(current_app._get_current_object(), exception=e)
+        app = request.app
+        headers = CIDict()
         if e.__class__ in self.error_handlers:
             handler = self.error_handlers[e.__class__]
             result = handler(e)
             default_data, code, headers = unpack(result, HTTPStatus.INTERNAL_SERVER_ERROR)
-        elif isinstance(e, HTTPException):
+        elif isinstance(e, SanicException):
             code = HTTPStatus(e.code)
+            status = COMMON_STATUS_CODES.get(code.value)
+            if not status:
+                status = ALL_STATUS_CODES.get(code.value)
+            if status and isinstance(status, bytes):
+                status = status.decode('ascii')
             default_data = {
-                'message': getattr(e, 'description', code.phrase)
+                'message': getattr(e, 'message', status)
             }
-            headers = e.get_response().headers
+            # headers = e.get_response().headers
         elif self._default_error_handler:
             result = self._default_error_handler(e)
             default_data, code, headers = unpack(result, HTTPStatus.INTERNAL_SERVER_ERROR)
         else:
             code = HTTPStatus.INTERNAL_SERVER_ERROR
+            status = COMMON_STATUS_CODES.get(code.value, str(e))
+            if status and isinstance(status, bytes):
+                status = status.decode('ascii')
             default_data = {
-                'message': code.phrase,
+                'message': status,
             }
 
         default_data['message'] = default_data.get('message', str(e))
@@ -637,10 +690,10 @@ class Api(object):
             exc_info = sys.exc_info()
             if exc_info[1] is None:
                 exc_info = None
-            current_app.log_exception(exc_info)
+            #current_app.log_exception(exc_info)
 
-        elif code == HTTPStatus.NOT_FOUND and current_app.config.get("ERROR_404_HELP", True):
-            data['message'] = self._help_on_404(data.get('message', None))
+        elif code == HTTPStatus.NOT_FOUND and app.config.get("ERROR_404_HELP", True):
+            data['message'] = self._help_on_404(request, data.get('message', None))
 
         elif code == HTTPStatus.NOT_ACCEPTABLE and self.default_mediatype is None:
             # if we are handling NotAcceptable (406), make sure that
@@ -654,13 +707,14 @@ class Api(object):
         for header in HEADERS_BLACKLIST:
             headers.pop(header, None)
 
-        resp = self.make_response(data, code, headers, fallback_mediatype=fallback_mediatype)
+        resp = self.make_response(request, data, code, headers, fallback_mediatype=fallback_mediatype)
 
         if code == HTTPStatus.UNAUTHORIZED:
             resp = self.unauthorized(resp)
         return resp
 
-    def _help_on_404(self, message=None):
+    def _help_on_404(self, request, message=None):
+        raise NotImplementedError("Help on 404 is not yet implemented for Sanic-RestPlus")
         rules = dict([(RE_RULES.sub('', rule.rule), rule.rule)
                       for rule in current_app.url_map.iter_rules()])
         close_matches = difflib.get_close_matches(request.path, rules.keys())
@@ -688,9 +742,9 @@ class Api(object):
 
     # TODO: Sanic, payload (as a property) cannot see the request.
     #@property
-    #def payload(self):
-    #    '''Store the input payload in the current request context'''
-    #    return request.get_json()
+    def payload(self, request):
+        '''Store the input payload in the current request context'''
+        return request.json
 
     @property
     def refresolver(self):
@@ -808,6 +862,32 @@ class Api(object):
         if self.blueprint:
             endpoint = '{0}.{1}'.format(self.blueprint.name, endpoint)
         return self.app.url_for(endpoint, **values)
+
+
+class ApiErrorHandler(ErrorHandler):
+    def __init__(self, original_handler, api):
+        super(ApiErrorHandler, self).__init__()
+        self.original_handler = original_handler
+        self.api = api
+
+    def response(self, request, e):
+        '''
+        This function decides whether the error occurred in a sanic-restplus
+        endpoint or not. If it happened in a sanic-restplus endpoint, our
+        handler will be dispatched. If it happened in an unrelated view, the
+        app's original error handler will be dispatched.
+        In the event that the error occurred in a sanic-restplus endpoint but
+        the local handler can't resolve the situation, the router will fall
+        back onto the original_handler as last resort.
+
+        :param Exception e: the exception raised while handling the request
+        '''
+        if self.api._has_fr_route(request):
+            try:
+                return self.api.handle_error(request, e)
+            except Exception as e:
+                pass  # Fall through to original handler
+        return self.original_handler.response(request, e)
 
 
 class SwaggerView(Resource):

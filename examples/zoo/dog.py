@@ -1,4 +1,4 @@
-from flask_restplus import Namespace, Resource, fields
+from sanic_restplus import Namespace, Resource, fields
 
 api = Namespace('dogs', description='Dogs related operations')
 
@@ -16,7 +16,7 @@ DOGS = [
 class DogList(Resource):
     @api.doc('list_dogs')
     @api.marshal_list_with(dog)
-    def get(self):
+    def get(self, request):
         '''List all dogs'''
         return DOGS
 
@@ -27,7 +27,7 @@ class DogList(Resource):
 class Dog(Resource):
     @api.doc('get_dog')
     @api.marshal_with(dog)
-    def get(self, id):
+    def get(self, request, id):
         '''Fetch a dog given its identifier'''
         for dog in DOGS:
             if dog['id'] == id:

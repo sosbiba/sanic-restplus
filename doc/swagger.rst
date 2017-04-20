@@ -525,8 +525,8 @@ Models can also be specified with a :class:`~flask_restplus.reqparse.RequestPars
 
             @api.route('/my-resource/')
             class MyResource(Resource):
-                def get(self):
-                    data = api.payload
+                def get(self, request):
+                    data = api.payload(request)
 
 .. note::
 

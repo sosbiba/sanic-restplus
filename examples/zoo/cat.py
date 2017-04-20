@@ -1,4 +1,5 @@
-from flask_restplus import Namespace, Resource, fields
+from sanic_restplus import Namespace, Resource, fields
+from sanic.exceptions import SanicException, InvalidUsage
 
 api = Namespace('cats', description='Cats related operations')
 
@@ -16,7 +17,7 @@ CATS = [
 class CatList(Resource):
     @api.doc('list_cats')
     @api.marshal_list_with(cat)
-    def get(self):
+    def get(self, request):
         '''List all cats'''
         return CATS
 
@@ -27,8 +28,9 @@ class CatList(Resource):
 class Cat(Resource):
     @api.doc('get_cat')
     @api.marshal_with(cat)
-    def get(self, id):
+    def get(self, request, id):
         '''Fetch a cat given its identifier'''
+        raise InvalidUsage("Text Exception",status_code=405)
         for cat in CATS:
             if cat['id'] == id:
                 return cat

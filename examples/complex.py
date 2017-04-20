@@ -1,10 +1,8 @@
-from flask import Flask
-from werkzeug.contrib.fixers import ProxyFix
+from sanic import Sanic
 
-from zoo import api
+from examples.zoo import api
 
-app = Flask(__name__)
-app.wsgi_app = ProxyFix(app.wsgi_app)
+app = Sanic(__name__)
 
 api.init_app(app)
 
