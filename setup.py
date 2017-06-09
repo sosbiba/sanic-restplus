@@ -56,7 +56,7 @@ long_description = '\n'.join((
 ))
 
 
-exec(compile(open('flask_restplus/__about__.py').read(), 'flask_restplus/__about__.py', 'exec'))
+exec(compile(open('sanic_restplus/__about__.py').read(), 'sanic_restplus/__about__.py', 'exec'))
 
 install_requires = pip('install')
 if sys.version_info < (3, 4):
@@ -65,11 +65,11 @@ doc_require = pip('doc')
 tests_require = pip('test')
 
 setup(
-    name='flask-restplus',
+    name='sanic-restplus',
     version=__version__,
     description=__description__,
     long_description=long_description,
-    url='https://github.com/noirbizarre/flask-restplus',
+    url='https://github.com/ashleysommer/sanic-restplus',
     author='Axel Haustant',
     author_email='axel@data.gouv.fr',
     packages=find_packages(exclude=['tests', 'tests.*']),
