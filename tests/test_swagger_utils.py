@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-from flask_restplus.swagger import extract_path, extract_path_params, parse_docstring
+from sanic_restplus.swagger import extract_path, extract_path_params, parse_docstring
 
 
 class ExtractPathTest(object):

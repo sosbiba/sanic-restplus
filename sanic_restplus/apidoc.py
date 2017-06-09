@@ -5,6 +5,7 @@ from __future__ import unicode_literals
 from sanic import Blueprint
 from sanic_jinja2 import SanicJinja2
 from jinja2 import PackageLoader
+import sys
 
 class Apidoc(Blueprint):
     '''
@@ -54,8 +55,15 @@ j2.add_env('config', swagger_static)
 #     return url_for('restplus_doc.static',
 #                    filename='bower/swagger-ui/dist/{0}'.format(filename))
 
-
-def ui_for(request, api):
-    '''Render a SwaggerUI for a given API'''
-    return j2.render('swagger-ui.html', request, title=api.title,
-                           specs_url=api.specs_url)
+req_version = (3, 6)
+cur_version = sys.version_info
+if cur_version >= req_version:
+    async def ui_for(request, api):
+        '''Render a SwaggerUI for a given API'''
+        return await j2.render_async('swagger-ui.html', request, title=api.title,
+                               specs_url=api.specs_url)
+else:
+    def ui_for(request, api):
+        '''Render a SwaggerUI for a given API'''
+        return j2.render('swagger-ui.html', request, title=api.title,
+                               specs_url=api.specs_url)

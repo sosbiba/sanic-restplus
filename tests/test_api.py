@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 
 from flask import url_for, Blueprint
 
-import flask_restplus as restplus
+import sanic_restplus as restplus
 
 
 class APITest(object):

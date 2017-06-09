@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-import flask_restplus as restplus
+import sanic_restplus as restplus
 
-from flask_restplus import Namespace
+from sanic_restplus import Namespace
 
 
 class NamespaceTest(object):

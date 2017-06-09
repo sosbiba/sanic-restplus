@@ -4,7 +4,7 @@ from __future__ import unicode_literals
 import copy
 import pytest
 
-from flask_restplus import fields, Model, SchemaModel
+from sanic_restplus import fields, Model, SchemaModel
 
 
 class ModelTest(object):

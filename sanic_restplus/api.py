@@ -387,13 +387,16 @@ class Api(object):
     def render_root(self, request):
         self.abort(HTTPStatus.NOT_FOUND)
 
-    def render_doc(self, request):
+    async def render_doc(self, request):
         '''Override this method to customize the documentation page'''
         if self._doc_view:
             return self._doc_view()
         elif not self._doc:
-            self.abort(HTTPStatus.NOT_FOUND)
-        return apidoc.ui_for(request, self)
+            self.abort(HTTPStatus.NOT_FOUND
+        response = apidoc.ui_for(request, self)
+        if asyncio.iscoroutine(response):
+            response = await response
+        return response
 
     def default_endpoint(self, resource, namespace):
         '''

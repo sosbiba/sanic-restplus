@@ -9,7 +9,7 @@ try:
 except ImportError:
     from ordereddict import OrderedDict
 
-from flask_restplus import mask, Api, Resource, fields, marshal, Mask
+from sanic_restplus import mask, Api, Resource, fields, marshal, Mask
 
 
 def assert_data(tested, expected):

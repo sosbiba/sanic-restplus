@@ -8,7 +8,7 @@ from os.path import join, dirname
 from jsonschema import validate
 from werkzeug.datastructures import FileStorage
 
-import flask_restplus as restplus
+import sanic_restplus as restplus
 
 from six.moves.urllib.parse import parse_qs, urlparse
 

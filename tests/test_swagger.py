@@ -8,9 +8,9 @@ from textwrap import dedent
 from flask import url_for, Blueprint
 from werkzeug.datastructures import FileStorage
 
-import flask_restplus as restplus
+import sanic_restplus as restplus
 
-from flask_restplus import inputs
+from sanic_restplus import inputs
 
 
 class SwaggerTest(object):

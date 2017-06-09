@@ -10,9 +10,9 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.wrappers import Request
 from werkzeug.datastructures import FileStorage, MultiDict
 
-from flask_restplus import Api, Model, fields, inputs
-from flask_restplus.errors import SpecsError
-from flask_restplus.reqparse import Argument, RequestParser, ParseResult
+from sanic_restplus import Api, Model, fields, inputs
+from sanic_restplus.errors import SpecsError
+from sanic_restplus.reqparse import Argument, RequestParser, ParseResult
 
 
 class ReqParseTest(object):

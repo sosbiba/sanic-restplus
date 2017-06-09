@@ -4,13 +4,14 @@ from __future__ import unicode_literals
 import json
 import pytest
 
-from flask import Flask, Blueprint
-from flask.testing import FlaskClient
-
-import flask_restplus as restplus
+from sanic import Sanic, Blueprint
+from sanic.testing import SanicTestClient
 
 
-class TestClient(FlaskClient):
+import sanic_restplus as restplus
+
+
+class TestClient(SanicTestClient):
     def get_json(self, url, status=200, **kwargs):
         response = self.get(url, **kwargs)
         assert response.status_code == status
@@ -31,7 +32,7 @@ class TestClient(FlaskClient):
 
 @pytest.fixture
 def app():
-    app = Flask(__name__)
+    app = Sanic(__name__)
     app.test_client_class = TestClient
     yield app
 

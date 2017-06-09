@@ -6,7 +6,7 @@ import pytest
 from flask import url_for, Blueprint
 from werkzeug.routing import BuildError
 
-import flask_restplus as restplus
+import sanic_restplus as restplus
 
 
 class APIDocTest(object):

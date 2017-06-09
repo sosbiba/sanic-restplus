@@ -5,7 +5,7 @@ import flask
 
 from flask import Blueprint, request
 
-import flask_restplus as restplus
+import sanic_restplus as restplus
 
 
 # Add a dummy Resource to verify that the app is properly set.

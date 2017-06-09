@@ -10,7 +10,7 @@ from flask.signals import got_request_exception
 from werkzeug.exceptions import HTTPException, BadRequest, NotFound, Aborter
 from werkzeug.http import quote_etag, unquote_etag
 
-import flask_restplus as restplus
+import sanic_restplus as restplus
 
 
 class ErrorsTest(object):

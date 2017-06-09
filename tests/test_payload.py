@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-import flask_restplus as restplus
+import sanic_restplus as restplus
 
 
 class PayloadTest(object):
@@ -162,8 +162,8 @@ class PayloadTest(object):
             payload = None
 
             @api.expect(fields)
-            def post(self):
-                Payload.payload = api.payload
+            def post(self, request):
+                Payload.payload = api.payload(request)
                 return {}
 
         data = {
