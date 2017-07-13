@@ -1,11 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # flake8: noqa
 
 import io
 import os
 import re
-import sys
 
 from setuptools import setup, find_packages
 
@@ -81,7 +80,7 @@ setup(
         'doc': doc_require,
     },
     license='MIT',
-    use_2to3=True,
+    use_2to3=False,
     zip_safe=False,
     keywords='sanic restplus rest api swagger openapi',
     classifiers=[
@@ -92,10 +91,7 @@ setup(
         'Intended Audience :: Developers',
         'Topic :: System :: Software Distribution',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: Implementation :: PyPy',
