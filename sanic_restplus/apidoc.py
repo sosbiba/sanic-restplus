@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-
+import os
 #from flask import url_for, Blueprint, render_template
 from sanic import Blueprint
 from sanic_jinja2 import SanicJinja2
@@ -38,8 +38,12 @@ apidoc = Apidoc('restplus_doc', None)
 loader = PackageLoader(__name__, 'templates')
 j2 = SanicJinja2(apidoc, loader)
 
-
-apidoc.static('/swaggerui', './sanic_restplus/static')
+module_path = os.path.abspath(os.path.dirname(__file__))
+module_static = os.path.join(module_path, 'static')
+if os.path.isdir(module_static):
+    apidoc.static('/swaggerui', module_static)
+else:
+    apidoc.static('/swaggerui', './sanic_restplus/static')
 
 def swagger_static(filename):
     return url_for('restplus_doc.static', filename=filename
