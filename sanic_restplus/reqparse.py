@@ -7,8 +7,8 @@ import six
 from collections import Hashable
 from copy import deepcopy
 
-from werkzeug.datastructures import MultiDict, FileStorage
-from werkzeug import exceptions
+#from werkzeug.datastructures import MultiDict, FileStorage
+#from werkzeug import exceptions
 
 from .errors import abort, SpecsError
 from .marshalling import marshal
