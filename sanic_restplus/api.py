@@ -96,6 +96,7 @@ class Api(object):
         checkers), otherwise the default action is to not enforce any format validation.
     '''
 
+    uid_counter = 0
     def __init__(self, app=None, version='1.0', title=None, description=None,
             terms_url=None, license=None, license_url=None,
             contact=None, contact_url=None, contact_email=None,
@@ -152,6 +153,8 @@ class Api(object):
         self.resources = []
         self.app = None
         self.blueprint = None
+        Api.uid_counter += 1
+        self._uid = Api.uid_counter
 
         if app is not None:
             self.app = app
@@ -249,11 +252,11 @@ class Api(object):
 
     def _register_specs(self, app_or_blueprint):
         if self._add_specs:
-            endpoint = str('specs')
+            endpoint = str('specs') + str(self._uid)
             self._register_view(
                 app_or_blueprint,
                 SwaggerView,
-                '/swagger.json',
+                self.prefix + '/swagger.json',
                 endpoint=endpoint,
                 resource_class_args=(self, )
             )
@@ -263,11 +266,11 @@ class Api(object):
         root_path = self.prefix or '/'
         if self._add_specs and self._doc:
             # app_or_blueprint.add_url_rule(self._doc, 'doc', self.render_doc)
-            app_or_blueprint.add_route(named_route_fn('doc', self.render_doc), self._doc)
+            app_or_blueprint.add_route(named_route_fn('doc'+str(self._uid), self.render_doc), self._doc)
 
         if self._doc != root_path:
             try:# app_or_blueprint.add_url_rule(self.prefix or '/', 'root', self.render_root)
-                app_or_blueprint.add_route(named_route_fn('root', self.render_root), root_path)
+                app_or_blueprint.add_route(named_route_fn('root'+str(self._uid), self.render_root), root_path)
 
             except RouteExists:
                 pass
@@ -479,7 +482,7 @@ class Api(object):
         :rtype: str
         '''
         try:
-            specs_url = self.app.url_for(self.endpoint('specs'), _external=True)
+            specs_url = self.app.url_for(self.endpoint('specs'+str(self._uid)), _external=True)
         except (AttributeError, KeyError):
             raise RuntimeError("The API object does not have an `app` assigned.")
         return specs_url
@@ -493,9 +496,9 @@ class Api(object):
         root_path = self.prefix or '/'
         try:
             if self._doc == root_path:
-                base_url = self.app.url_for(self.endpoint('doc'), _external=True)
+                base_url = self.app.url_for(self.endpoint('doc'+str(self._uid)), _external=True)
             else:
-                base_url = self.app.url_for(self.endpoint('root'), _external=True)
+                base_url = self.app.url_for(self.endpoint('root'+str(self._uid)), _external=True)
         except (AttributeError, KeyError):
             raise RuntimeError("The API object does not have an `app` assigned.")
         return base_url
@@ -511,9 +514,9 @@ class Api(object):
         root_path = self.prefix or '/'
         try:
             if self._doc == root_path:
-                base_url = self.app.url_for(self.endpoint('doc'))
+                base_url = self.app.url_for(self.endpoint('doc'+str(self._uid)))
             else:
-                base_url = self.app.url_for(self.endpoint('root'))
+                base_url = self.app.url_for(self.endpoint('root'+str(self._uid)))
         except (AttributeError, KeyError):
             raise RuntimeError("The API object does not have an `app` assigned.")
         return base_url

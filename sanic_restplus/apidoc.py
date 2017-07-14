@@ -5,6 +5,7 @@ import os
 from sanic import Blueprint
 from sanic_jinja2 import SanicJinja2
 from jinja2 import PackageLoader
+
 import sys
 
 class Apidoc(Blueprint):
