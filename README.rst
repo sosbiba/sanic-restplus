@@ -2,31 +2,19 @@
 Sanic RestPlus
 ==============
 
-.. image:: https://secure.travis-ci.org/noirbizarre/flask-restplus.svg?branch=master
-    :target: http://travis-ci.org/noirbizarre/flask-restplus?branch=master
-    :alt: Build status
-.. image:: https://coveralls.io/repos/noirbizarre/flask-restplus/badge.svg?branch=master
-    :target: https://coveralls.io/r/noirbizarre/flask-restplus?branch=master
-    :alt: Code coverage
-.. image:: https://readthedocs.org/projects/flask-restplus/badge/?version=latest
-    :target: http://flask-restplus.readthedocs.io/en/latest/
-    :alt: Documentation status
-.. image:: https://img.shields.io/pypi/l/flask-restplus.svg
-    :target: https://pypi.python.org/pypi/flask-restplus
-    :alt: License
-.. image:: https://img.shields.io/pypi/pyversions/flask-restplus.svg
-    :target: https://pypi.python.org/pypi/flask-restplus
-    :alt: Supported Python versions
-.. image:: https://badges.gitter.im/Join%20Chat.svg
-   :alt: Join the chat at https://gitter.im/noirbizarre/flask-restplus
-   :target: https://gitter.im/noirbizarre/flask-restplus?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge
-
 Sanic-RESTPlus is an extension for `Sanic`_ that adds support for quickly building REST APIs.
 Sanic-RESTPlus encourages best practices with minimal setup.
 If you are familiar with Sanic, Sanic-RESTPlus should be easy to pick up.
 It provides a coherent collection of decorators and tools to describe your API
 and expose its documentation properly using `Swagger`_.
 
+NOTE:
+=====
+I intend to release Sanic-restplus on pypi when it is finished being ported from Flask to Sanic.
+
+However in its current state I believe it is not yet ready to be submitted to pypi.
+
+There are still references to modules from Flask and Werkzeug in the code, which I need to remove and provide workaround functionality. Also in its current state it will crash, a lot.
 
 Compatibility
 =============
@@ -37,7 +25,7 @@ Sanic-RestPlus requires Python 3.5+.
 Installation
 ============
 
-You can install Sanic-Restplus with pip:
+In the near future, you will be able to install Sanic-Restplus with pip:
 
 .. code-block:: console
 
