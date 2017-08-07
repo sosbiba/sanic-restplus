@@ -1,5 +1,8 @@
 .. _parsing:
 
+NOTE: * This is for Flask-restplus request-parsing and does not apply to Sanic-Restplus *
+      * For a Sanic-Restplus example, see the Readme.rst file *
+
 Request Parsing
 ===============
 

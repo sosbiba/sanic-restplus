@@ -3,6 +3,9 @@ Error handling
 
 .. currentmodule:: flask_restplus
 
+NOTE: * This is about Flask-restplus exceptions handling and does not apply to Sanic-Restplus *
+      * For a Sanic-Restplus example, see the Readme.rst file *
+
 HTTPException handling
 ----------------------
 

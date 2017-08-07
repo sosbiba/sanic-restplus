@@ -28,12 +28,6 @@ from sanic import exceptions, Blueprint
 
 from jsonschema import RefResolver
 
-# from werkzeug import cached_property
-# from werkzeug.datastructures import Headers
-# from werkzeug.exceptions import HTTPException, MethodNotAllowed, NotFound, NotAcceptable, InternalServerError
-# from werkzeug.http import HTTP_STATUS_CODES
-# from werkzeug.wrappers import BaseResponse
-
 from . import apidoc
 from .mask import ParseError, MaskError
 from .namespace import Namespace
@@ -787,6 +781,7 @@ class Api(object):
             rule = blueprint_setup.url_prefix + rule
         options.setdefault('subdomain', blueprint_setup.subdomain)
         if endpoint is None:
+            # TODO: Sanic, what do we do here?
             endpoint = _endpoint_from_view_func(view_func)
         defaults = blueprint_setup.url_defaults
         if 'defaults' in options:
@@ -857,12 +852,12 @@ class Api(object):
 
     def unauthorized(self, response):
         '''Given a response, change it to ask for credentials'''
-
-        if self.serve_challenge_on_401:
-            realm = current_app.config.get("HTTP_BASIC_AUTH_REALM", "flask-restplus")
-            challenge = u"{0} realm=\"{1}\"".format("Basic", realm)
-
-            response.headers['WWW-Authenticate'] = challenge
+        # TODO: Sanic implement serve_challenge_on_401 for Sanic
+        #if self.serve_challenge_on_401:
+        #    realm = current_app.config.get("HTTP_BASIC_AUTH_REALM", "flask-restplus")
+        #    challenge = u"{0} realm=\"{1}\"".format("Basic", realm)
+        #
+        #    response.headers['WWW-Authenticate'] = challenge
         return response
 
     def url_for(self, resource, **values):

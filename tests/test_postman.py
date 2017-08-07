@@ -6,7 +6,7 @@ import json
 from os.path import join, dirname
 
 from jsonschema import validate
-from werkzeug.datastructures import FileStorage
+#from werkzeug.datastructures import FileStorage
 
 import sanic_restplus as restplus
 
@@ -280,7 +280,8 @@ class PostmanTest(object):
         form_parser.add_argument('param', type=int, help='Some param', location='form')
 
         file_parser = api.parser()
-        file_parser.add_argument('in_files', type=FileStorage, location='files')
+        #todo: replace this with Sanic file storage provider.
+        #file_parser.add_argument('in_files', type=FileStorage, location='files')
 
         @api.route('/json/')
         class TestJson(restplus.Resource):

@@ -2,7 +2,8 @@ Full example
 ============
 
 Here is a full example of a `TodoMVC <http://todomvc.com/>`_ API.
-
+NOTE: * This is a Flask-restplus example and does not apply to Sanic-Restplus *
+      * For a Sanic-Restplus example, see the Readme.rst file *
 .. code-block:: python
 
     from flask import Flask

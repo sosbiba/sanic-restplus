@@ -3,12 +3,10 @@ from __future__ import unicode_literals
 
 import decimal
 import six
-
+from sanic.server import CIDict
+from sanic import exceptions
 from collections import Hashable
 from copy import deepcopy
-
-#from werkzeug.datastructures import MultiDict, FileStorage
-#from werkzeug import exceptions
 
 from .errors import abort, SpecsError
 from .marshalling import marshal
@@ -120,13 +118,13 @@ class Argument(object):
         :param request: The flask request object to parse arguments from
         '''
         if isinstance(self.location, six.string_types):
-            value = getattr(request, self.location, MultiDict())
+            value = getattr(request, self.location, CIDict())
             if callable(value):
                 value = value()
             if value is not None:
                 return value
         else:
-            values = MultiDict()
+            values = CIDict()
             for l in self.location:
                 value = getattr(request, l, None)
                 if callable(value):
@@ -135,7 +133,7 @@ class Argument(object):
                     values.update(value)
             return values
 
-        return MultiDict()
+        return CIDict()
 
     def convert(self, value, op):
         # Don't cast None
@@ -149,8 +147,10 @@ class Argument(object):
 
         # and check if we're expecting a filestorage and haven't overridden `type`
         # (required because the below instantiation isn't valid for FileStorage)
-        elif isinstance(value, FileStorage) and self.type == FileStorage:
-            return value
+
+        #TODO: update this for Sanic filestorage handler
+        #elif isinstance(value, FileStorage) and self.type == FileStorage:
+        #    return value
 
         try:
             return self.type(value, self.name, op)
@@ -367,7 +367,7 @@ class RequestParser(object):
         if strict and req.unparsed_arguments:
             arguments = ', '.join(req.unparsed_arguments.keys())
             msg = 'Unknown arguments: {0}'.format(arguments)
-            raise exceptions.BadRequest(msg)
+            raise exceptions.SanicException("Bad Request", status_code=405)
 
         return result
 

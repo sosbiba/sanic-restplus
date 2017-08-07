@@ -8,8 +8,6 @@ from sanic.views import HTTPMethodView
 from sanic.response import HTTPResponse
 from sanic.constants import HTTP_METHODS
 
-# from werkzeug.wrappers import BaseResponse
-
 from .model import ModelBase
 
 from .utils import unpack, best_match_accept_mimetype
