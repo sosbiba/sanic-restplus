@@ -617,7 +617,14 @@ class Api(object):
 
         :return: bool
         '''
-        app = request.app
+        if request is None:
+            # This must be a Sanic error if request is None.
+            return False
+        try:
+            app = request.app
+        except AttributeError:
+            # if request doesn't have .app, then it is also a Sanic error
+            return False
         try:
             return self._dummy_router_get(app.router, request.method, request)
         except InvalidUsage as e:
