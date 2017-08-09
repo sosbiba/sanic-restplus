@@ -878,7 +878,7 @@ class ApiErrorHandler(ErrorHandler):
         self.original_handler = original_handler
         self.api = api
 
-    def response(self, request, e):
+    def response(self, request, e1):
         '''
         This function decides whether the error occurred in a sanic-restplus
         endpoint or not. If it happened in a sanic-restplus endpoint, our
@@ -892,10 +892,10 @@ class ApiErrorHandler(ErrorHandler):
         '''
         if self.api._has_fr_route(request):
             try:
-                return self.api.handle_error(request, e)
-            except Exception as e:
+                return self.api.handle_error(request, e1)
+            except Exception as e2:
                 pass  # Fall through to original handler
-        return self.original_handler.response(request, e)
+        return self.original_handler.response(request, e1)
 
 
 class SwaggerView(Resource):
