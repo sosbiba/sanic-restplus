@@ -476,7 +476,7 @@ class Api(object):
         :rtype: str
         '''
         try:
-            specs_url = self.app.url_for(self.endpoint('specs'+str(self._uid)), _external=True)
+            specs_url = self.app.url_for(self.endpoint('specs'+str(self._uid)), _external=False)
         except (AttributeError, KeyError):
             raise RuntimeError("The API object does not have an `app` assigned.")
         return specs_url
@@ -490,9 +490,9 @@ class Api(object):
         root_path = self.prefix or '/'
         try:
             if self._doc == root_path:
-                base_url = self.app.url_for(self.endpoint('doc'+str(self._uid)), _external=True)
+                base_url = self.app.url_for(self.endpoint('doc'+str(self._uid)), _external=False)
             else:
-                base_url = self.app.url_for(self.endpoint('root'+str(self._uid)), _external=True)
+                base_url = self.app.url_for(self.endpoint('root'+str(self._uid)), _external=False)
         except (AttributeError, KeyError):
             raise RuntimeError("The API object does not have an `app` assigned.")
         return base_url
