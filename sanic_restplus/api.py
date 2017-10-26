@@ -246,7 +246,7 @@ class Api(object):
 
     def _register_specs(self, app_or_blueprint):
         if self._add_specs:
-            endpoint = str('specs') + str(self._uid)
+            endpoint = '{}_specs'.format(str(self._uid))
             self._register_view(
                 app_or_blueprint,
                 SwaggerView,
@@ -260,11 +260,11 @@ class Api(object):
         root_path = self.prefix or '/'
         if self._add_specs and self._doc:
             # app_or_blueprint.add_url_rule(self._doc, 'doc', self.render_doc)
-            app_or_blueprint.add_route(named_route_fn('doc'+str(self._uid), self.render_doc), self._doc)
+            app_or_blueprint.add_route(named_route_fn('{}_doc'.format(str(self._uid)), self.render_doc), self._doc)
 
         if self._doc != root_path:
             try:# app_or_blueprint.add_url_rule(self.prefix or '/', 'root', self.render_root)
-                app_or_blueprint.add_route(named_route_fn('root'+str(self._uid), self.render_root), root_path)
+                app_or_blueprint.add_route(named_route_fn('{}_root'.format(str(self._uid)), self.render_root), root_path)
 
             except RouteExists:
                 pass
@@ -396,18 +396,18 @@ class Api(object):
         return response
 
     def default_endpoint(self, resource, namespace):
-        '''
+        """
         Provide a default endpoint for a resource on a given namespace.
 
         Endpoints are ensured not to collide.
 
-        Override this method specify a custom algoryhtm for default endpoint.
+        Override this method to specify a custom algorithm for default endpoint.
 
         :param Resource resource: the resource for which we want an endpoint
         :param Namespace namespace: the namespace holding the resource
         :returns str: An endpoint name
-        '''
-        endpoint = camel_to_dash(resource.__name__)
+        """
+        endpoint = "{}_{}".format(str(self._uid), camel_to_dash(resource.__name__))
         if namespace is not self.default_namespace:
             endpoint = '{ns.name}_{endpoint}'.format(ns=namespace, endpoint=endpoint)
         if endpoint in self.endpoints:
@@ -476,7 +476,7 @@ class Api(object):
         :rtype: str
         '''
         try:
-            specs_url = self.app.url_for(self.endpoint('specs'+str(self._uid)), _external=False)
+            specs_url = self.app.url_for(self.endpoint('{}_specs'.format(str(self._uid))), _external=False)
         except (AttributeError, KeyError):
             raise RuntimeError("The API object does not have an `app` assigned.")
         return specs_url
@@ -490,9 +490,9 @@ class Api(object):
         root_path = self.prefix or '/'
         try:
             if self._doc == root_path:
-                base_url = self.app.url_for(self.endpoint('doc'+str(self._uid)), _external=False)
+                base_url = self.app.url_for(self.endpoint('{}_doc'.format(str(self._uid))), _external=False)
             else:
-                base_url = self.app.url_for(self.endpoint('root'+str(self._uid)), _external=False)
+                base_url = self.app.url_for(self.endpoint('{}_root'.format(str(self._uid))), _external=False)
         except (AttributeError, KeyError):
             raise RuntimeError("The API object does not have an `app` assigned.")
         return base_url
@@ -508,9 +508,9 @@ class Api(object):
         root_path = self.prefix or '/'
         try:
             if self._doc == root_path:
-                base_url = self.app.url_for(self.endpoint('doc'+str(self._uid)))
+                base_url = self.app.url_for(self.endpoint('{}_doc'.format(str(self._uid))))
             else:
-                base_url = self.app.url_for(self.endpoint('root'+str(self._uid)))
+                base_url = self.app.url_for(self.endpoint('{}_root'.format(str(self._uid))))
         except (AttributeError, KeyError):
             raise RuntimeError("The API object does not have an `app` assigned.")
         return base_url
