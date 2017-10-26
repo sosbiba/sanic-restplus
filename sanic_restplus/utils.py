@@ -140,6 +140,8 @@ def best_match_accept_mimetype(request, representations, default=None):
         if accept_mimetypes is None or len(accept_mimetypes) < 1:
             return default
         for accept_type, qual in accept_mimetypes:
+            if accept_type == "*" or accept_type == "*/*" or accept_type == "*.*":
+                return default
             if accept_type in representations:
                 return accept_type
         for accept_type, qual in accept_mimetypes:
