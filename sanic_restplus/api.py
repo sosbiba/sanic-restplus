@@ -19,7 +19,11 @@ from types import MethodType
 # from flask.signals import got_request_exception
 
 from sanic.router import RouteExists, url_hash
-from sanic.response import HTTPResponse, text, COMMON_STATUS_CODES, ALL_STATUS_CODES
+from sanic.response import HTTPResponse, text
+try:
+    from sanic.response import ALL_STATUS_CODES
+except ImportError:
+    from sanic.response import STATUS_CODES as ALL_STATUS_CODES
 from sanic.handlers import ErrorHandler
 from sanic.exceptions import SanicException, InvalidUsage, NotFound
 from sanic.server import CIDict
@@ -667,9 +671,15 @@ class Api(object):
             result = handler(e)
             default_data, code, headers = unpack(result, HTTPStatus.INTERNAL_SERVER_ERROR)
         elif isinstance(e, SanicException):
-            code = HTTPStatus(e.code)
-            status = COMMON_STATUS_CODES.get(code.value)
-            if not status:
+            code = e.status_code
+            if code is 200:
+                status = b'OK'
+            elif code is 404:
+                status = b'Not Found'
+            elif code is 500:
+                status = b'Internal Server Error'
+            else:
+                code = HTTPStatus(code)
                 status = ALL_STATUS_CODES.get(code.value)
             if status and isinstance(status, bytes):
                 status = status.decode('ascii')
@@ -682,7 +692,7 @@ class Api(object):
             default_data, code, headers = unpack(result, HTTPStatus.INTERNAL_SERVER_ERROR)
         else:
             code = HTTPStatus.INTERNAL_SERVER_ERROR
-            status = COMMON_STATUS_CODES.get(code.value, str(e))
+            status = ALL_STATUS_CODES.get(code.value, str(e))
             if status and isinstance(status, bytes):
                 status = status.decode('ascii')
             default_data = {
@@ -697,6 +707,7 @@ class Api(object):
             exc_info = sys.exc_info()
             if exc_info[1] is None:
                 exc_info = None
+            #TODO: Sanic, need to log to app logger here.
             #current_app.log_exception(exc_info)
 
         elif code == HTTPStatus.NOT_FOUND and app.config.get("ERROR_404_HELP", True):
