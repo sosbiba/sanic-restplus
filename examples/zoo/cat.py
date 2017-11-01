@@ -30,7 +30,6 @@ class Cat(Resource):
     @api.marshal_with(cat)
     def get(self, request, id):
         '''Fetch a cat given its identifier'''
-        raise InvalidUsage("Text Exception",status_code=405)
         for cat in CATS:
             if cat['id'] == id:
                 return cat

@@ -43,7 +43,7 @@ class Resource(with_metaclass(ResourceMeta, MethodViewExt)):
     the API will return a response with status 405 Method Not Allowed.
     Otherwise the appropriate method is called and passed all arguments
     from the url rule used when adding the resource to an Api instance.
-    See :meth:`~flask_restplus.Api.add_resource` for details.
+    See :meth:`~sanic_restplus.Api.add_resource` for details.
     '''
 
     representations = None

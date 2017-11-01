@@ -1,5 +1,5 @@
 [bumpr]
-file = flask_restplus/__about__.py
+file = sanic_restplus/__about__.py
 vcs = git
 commit = true
 tag = true

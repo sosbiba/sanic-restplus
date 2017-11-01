@@ -1,6 +1,7 @@
 Authors
 =======
 
+Thanks to all of Sanic-RESTPlus contributors:
 Thanks to all of Flask-RESTPlus contributors (including those of initial flask-restful):
 
 
@@ -15,6 +16,7 @@ Thanks to all of Flask-RESTPlus contributors (including those of initial flask-r
 - Antonio Dourado
 - Antonio Herraiz
 - Artur Rodrigues
+- Ashley Sommer
 - Axel Haustant
 - Belousow Makc
 - Bennett, Bryan

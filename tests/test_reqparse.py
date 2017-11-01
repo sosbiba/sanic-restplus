@@ -38,7 +38,7 @@ class ReqParseTest(object):
             assert args['todo'] == {'task': 'aaa'}
 
     def test_help(self, app, mocker):
-        abort = mocker.patch('flask_restplus.reqparse.abort',
+        abort = mocker.patch('sanic_restplus.reqparse.abort',
                            side_effect=BadRequest('Bad Request'))
         parser = RequestParser()
         parser.add_argument('foo', choices=('one', 'two'), help='Bad choice.')
@@ -50,7 +50,7 @@ class ReqParseTest(object):
         abort.assert_called_with(400, 'Input payload validation failed', errors=expected)
 
     def test_no_help(self, app, mocker):
-        abort = mocker.patch('flask_restplus.reqparse.abort',
+        abort = mocker.patch('sanic_restplus.reqparse.abort',
                              side_effect=BadRequest('Bad Request'))
         parser = RequestParser()
         parser.add_argument('foo', choices=['one', 'two'])
@@ -765,7 +765,7 @@ class ArgumentTest(object):
         assert len(arg.operators) == 1
 
     def test_default_type(self, mocker):
-        mock_six = mocker.patch('flask_restplus.reqparse.six')
+        mock_six = mocker.patch('sanic_restplus.reqparse.six')
         arg = Argument('foo')
         sentinel = object()
         arg.type(sentinel)

@@ -135,7 +135,7 @@ def cover(ctx, html=False):
     header(cover.__doc__)
     extra = '--cov-report html' if html else ''
     with ctx.cd(ROOT):
-        ctx.run('pytest --benchmark-skip --cov flask_restplus --cov-report term {0}'.format(extra), pty=True)
+        ctx.run('pytest --benchmark-skip --cov sanic_restplus --cov-report term {0}'.format(extra), pty=True)
 
 
 @task
@@ -151,7 +151,7 @@ def qa(ctx):
     header(qa.__doc__)
     with ctx.cd(ROOT):
         info('Python Static Analysis')
-        flake8_results = ctx.run('flake8 flask_restplus tests', pty=True, warn=True)
+        flake8_results = ctx.run('flake8 sanic_restplus tests', pty=True, warn=True)
         if flake8_results.failed:
             error('There is some lints to fix')
         else:
@@ -182,11 +182,11 @@ def assets(ctx):
     header(assets.__doc__)
     with ctx.cd(ROOT):
         ctx.run('npm install')
-        ctx.run('mkdir flask_restplus/static')
-        ctx.run('cp node_modules/swagger-ui-dist/{swagger-ui*.{css,js}{,.map},favicon*.png} flask_restplus/static')
+        ctx.run('mkdir sanic_restplus/static')
+        ctx.run('cp node_modules/swagger-ui-dist/{swagger-ui*.{css,js}{,.map},favicon*.png} sanic_restplus/static')
         # Until next release we need to install droid sans separately
-        ctx.run('cp node_modules/typeface-droid-sans/index.css flask_restplus/static/droid-sans.css')
-        ctx.run('cp -R node_modules/typeface-droid-sans/files flask_restplus/static/')
+        ctx.run('cp node_modules/typeface-droid-sans/index.css sanic_restplus/static/droid-sans.css')
+        ctx.run('cp -R node_modules/typeface-droid-sans/files sanic_restplus/static/')
 
 
 @task

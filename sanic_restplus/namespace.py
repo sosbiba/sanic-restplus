@@ -121,7 +121,7 @@ class Namespace(object):
         '''
         Properly abort the current request
 
-        See: :func:`~flask_restplus.errors.abort`
+        See: :func:`~sanic_restplus.errors.abort`
         '''
         abort(*args, **kwargs)
 

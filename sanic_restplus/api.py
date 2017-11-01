@@ -393,7 +393,7 @@ class Api(object):
         if self._doc_view:
             return self._doc_view()
         elif not self._doc:
-            self.abort(HTTPStatus.NOT_FOUND
+            self.abort(HTTPStatus.NOT_FOUND)
         response = apidoc.ui_for(request, self)
         if asyncio.iscoroutine(response):
             response = await response
@@ -804,7 +804,7 @@ class Api(object):
         '''
         Synchronize prefix between blueprint/api and registration options, then
         perform initialization with setup_state.app :class:`sanic.Sanic` object.
-        When a :class:`flask_restplus.Api` object is initialized with a blueprint,
+        When a :class:`sanic_restplus.Api` object is initialized with a blueprint,
         this method is recorded on the blueprint to be run when the blueprint is later
         registered to a :class:`sanic.Sanic` object.  This method also monkeypatches
         BlueprintSetupState.add_url_rule with _blueprint_setup_add_url_rule_patch.

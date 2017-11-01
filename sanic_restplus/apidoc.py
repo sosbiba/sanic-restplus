@@ -47,7 +47,11 @@ else:
     apidoc.static('/swaggerui', './sanic_restplus/static')
 
 def swagger_static(filename):
-    return url_for('restplus_doc.static', filename=filename
+    if apidoc.url_prefix and len(apidoc.url_prefix) > 0:
+        return '{}/swaggerui/{}'.format(apidoc.url_prefix, filename)
+    return '/swaggerui/{}'.format(filename)
+    # Sanic cannot do named routes for static file routes at the moment
+    # return apidoc.url_for('restplus_doc.static', filename=filename)
 
 def config():
     return apidoc.config

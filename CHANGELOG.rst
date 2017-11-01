@@ -1,7 +1,7 @@
 Changelog
 =========
 
-.. currentmodule:: flask_restplus
+.. currentmodule:: sanic_restplus
 
 Current
 -------
