@@ -101,7 +101,7 @@ class marshal_with(object):
 
     see :meth:`flask_restplus.marshal`
     """
-    def __init__(self, fields, envelope=None, skip_none=False, mask=None):
+    def __init__(self, fields, envelope=None, skip_none=False, mask=None, mask_header=None):
         """
         :param fields: a dict of whose keys will make up the final
                        serialized response output
@@ -112,16 +112,17 @@ class marshal_with(object):
         self.envelope = envelope
         self.skip_none = skip_none
         self.mask = Mask(mask, skip=True)
+        self.mask_header = mask_header
 
     def __call__(self, f):
         @wraps(f)
         async def wrapper(*args, **kwargs):
+            request = args[0]
             resp = f(*args, **kwargs)
             mask = self.mask
-            # TODO Sanic : Fix masking (needs app_context)
-            #if has_app_context():
-            #    mask_header = current_app.config['RESTPLUS_MASK_HEADER']
-            #    mask = request.headers.get(mask_header) or mask
+
+            if self.mask_header:
+                mask = request.headers.get(self.mask_header) or mask
             while asyncio.iscoroutine(resp):
                 resp = await resp
             if isinstance(resp, tuple):

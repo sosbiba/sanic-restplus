@@ -9,6 +9,7 @@ from collections import OrderedDict, Hashable
 from six import string_types, itervalues, iteritems, iterkeys
 
 from . import fields
+from.restplus import restplus
 from .model import Model, ModelBase
 from .reqparse import RequestParser
 from .utils import merge, not_none, not_none_sorted, parse_rule
@@ -207,7 +208,7 @@ class Swagger(object):
         return not_none(specs)
 
     def get_host(self):
-        current_app = self.api.app
+        current_app = restplus.get_app_from_spf_context(self.api.spf_reg)
         hostname = current_app.config.get('SERVER_NAME', None) or None
         if hostname and self.api.blueprint and self.api.blueprint.subdomain:
             hostname = '.'.join((self.api.blueprint.subdomain, hostname))
@@ -401,20 +402,19 @@ class Swagger(object):
             params.append(param)
 
         # Handle fields mask
-        #TODO Sanic fields mask
-        # mask = doc.get('__mask__')
-        # if (mask and current_app.config['RESTPLUS_MASK_SWAGGER']):
-        #     param = {
-        #         'name': current_app.config['RESTPLUS_MASK_HEADER'],
-        #         'in': 'header',
-        #         'type': 'string',
-        #         'format': 'mask',
-        #         'description': 'An optional fields mask',
-        #     }
-        #     if isinstance(mask, string_types):
-        #         param['default'] = mask
-        #     params.append(param)
-
+        context = restplus.get_context_from_spf(self.api.spf_reg)
+        mask = doc.get('__mask__')
+        if mask and context.get('MASK_SWAGGER', False):
+            param = {
+                'name': context.get('RESTPLUS_MASK_HEADER'),
+                'in': 'header',
+                'type': 'string',
+                'format': 'mask',
+                'description': 'An optional fields mask',
+            }
+            if isinstance(mask, string_types):
+                param['default'] = mask
+            params.append(param)
         return params
 
     def responses_for(self, doc, method):
