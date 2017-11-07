@@ -39,6 +39,7 @@ class Namespace(object):
         self.resources = []
         self.error_handlers = {}
         self.default_error_handler = None
+        self.mask_header = kwargs.pop('mask_header', None)
         self.apis = []
         if 'api' in kwargs:
             self.apis.append(kwargs['api'])
@@ -219,15 +220,18 @@ class Namespace(object):
         :param int code: Optionally give the expected HTTP response code if its different from 200
 
         '''
+        doc = {
+            'responses': {
+                code: (description, [fields]) if as_list else (description, fields)
+            },
+            '__mask__': kwargs.get('mask', True),  # Mask values can't be determined outside app context
+        }
+        real_marshal_with = marshal_with(fields, mask_header=self.mask_header, **kwargs)
+
         def wrapper(func):
-            doc = {
-                'responses': {
-                    code: (description, [fields]) if as_list else (description, fields)
-                },
-                '__mask__': kwargs.get('mask', True),  # Mask values can't be determined outside app context
-            }
+            nonlocal doc
             func.__apidoc__ = merge(getattr(func, '__apidoc__', {}), doc)
-            return marshal_with(fields, **kwargs)(func)
+            return real_marshal_with(func)
         return wrapper
 
     def marshal_list_with(self, fields, **kwargs):

@@ -16,7 +16,6 @@ from types import MethodType
 # from flask import url_for, request, current_app
 # from flask import make_response as original_flask_make_response
 # from flask.helpers import _endpoint_from_view_func
-# from flask.signals import got_request_exception
 
 from sanic.router import RouteExists, url_hash
 from sanic.response import HTTPResponse, text
@@ -33,6 +32,7 @@ from sanic import exceptions, Blueprint
 from jsonschema import RefResolver
 
 from . import apidoc
+from .restplus import restplus
 from .mask import ParseError, MaskError
 from .namespace import Namespace
 from .postman import PostmanCollectionV1
@@ -95,7 +95,7 @@ class Api(object):
     '''
 
     uid_counter = 0
-    def __init__(self, app=None, version='1.0', title=None, description=None,
+    def __init__(self, spf_reg=None, version='1.0', title=None, description=None,
             terms_url=None, license=None, license_url=None,
             contact=None, contact_url=None, contact_email=None,
             authorizations=None, security=None, doc='/', default_id=default_id,
@@ -149,23 +149,23 @@ class Api(object):
         self.blueprint_setup = None
         self.endpoints = set()
         self.resources = []
-        self.app = None
+        self.spf_reg = None
         self.blueprint = None
         Api.uid_counter += 1
         self._uid = Api.uid_counter
 
-        if app is not None:
-            self.app = app
-            self.init_app(app)
+        if spf_reg is not None:
+            self.spf = spf_reg
+            self.init_api(spf_reg)
         # super(Api, self).__init__(app, **kwargs)
 
-    def init_app(self, app, **kwargs):
+    def init_api(self, reg, **kwargs):
         '''
-        Allow to lazy register the API on a Sanic application::
+        Allow to lazy register the API on a SPF instance::
 
         >>> app = Sanic(__name__)
         >>> api = Api()
-        >>> api.init_app(app)
+        >>> api.init_api(reg)
 
         :param sanic.Sanic app: the Flask application object
         :param str title: The API title (used in Swagger documentation)
@@ -176,8 +176,8 @@ class Api(object):
         :param str license_url: The license page URL (used in Swagger documentation)
 
         '''
-        if self.app is None:
-            self.app = app
+        if self.spf_reg is None:
+            self.spf_reg = reg
         self.title = kwargs.get('title', self.title)
         self.description = kwargs.get('description', self.description)
         self.terms_url = kwargs.get('terms_url', self.terms_url)
@@ -188,26 +188,29 @@ class Api(object):
         self.license_url = kwargs.get('license_url', self.license_url)
         self._add_specs = kwargs.get('add_specs', True)
 
+        (spf, n, u) = reg
+        context = restplus.get_context_from_spf(spf)
+        app = context.app
         # If app is a blueprint, defer the initialization
         try:
             if isinstance(app, Blueprint):
-                raise RuntimeError("As of Sanic 0.4.1, you cannot use Sanic restplus on a Blueprint. This will likely "
+                raise RuntimeError("As of Sanic 0.4.1, you cannot use Sanic-Restplus on a Blueprint. This will likely "
                                    "change in the future.")
             app.record(self._deferred_blueprint_init)
         # Flask.Blueprint has a 'record' attribute, Flask.Api does not
         except AttributeError:
-            self._init_app(app)
+            self._init_app(app, context)
         else:
             self.blueprint = app
 
-    def _init_app(self, app):
-        '''
+    def _init_app(self, app, context):
+        """
         Perform initialization actions with the given :class:`sanic.Sanic` object.
 
-        :param sanic.Sanic app: The flask application object
-        '''
-        self._register_specs(self.blueprint or app)
-        self._register_doc(self.blueprint or app)
+        :param sanic.Sanic app: The sanic application object
+        """
+        self._register_specs()
+        self._register_doc()
 
         #TODO Sanic fix exception handling
         app.error_handler = ApiErrorHandler(app.error_handler, self)
@@ -215,12 +218,15 @@ class Api(object):
 
         if len(self.resources) > 0:
             for resource, urls, kwargs in self.resources:
-                self._register_view(app, resource, *urls, **kwargs)
+                self._register_view(resource, *urls, **kwargs)
 
         self._register_apidoc(app)
         self._validate = self._validate if self._validate is not None else app.config.get('RESTPLUS_VALIDATE', False)
         app.config.setdefault('RESTPLUS_MASK_HEADER', 'X-Fields')
         app.config.setdefault('RESTPLUS_MASK_SWAGGER', True)
+        context.MASK_HEADER = app.config['RESTPLUS_MASK_HEADER']
+        context.MASK_SWAGGER = app.config['RESTPLUS_MASK_SWAGGER']
+
 
     def __getattr__(self, name):
         try:
@@ -241,18 +247,15 @@ class Api(object):
         return ''.join(part for part in parts if part)
 
     def _register_apidoc(self, app):
-        if not hasattr(app, 'extensions'):
-            app.extensions = {}
-        conf = app.extensions.setdefault('restplus', {})
-        if not conf.get('apidoc_registered', False):
+        context = restplus.get_context_from_spf(self.spf_reg)
+        if not context.get('apidoc_registered', False):
             app.blueprint(apidoc.apidoc)
-        conf['apidoc_registered'] = True
+        context['apidoc_registered'] = True
 
-    def _register_specs(self, app_or_blueprint):
+    def _register_specs(self):
         if self._add_specs:
             endpoint = '{}_specs'.format(str(self._uid))
             self._register_view(
-                app_or_blueprint,
                 SwaggerView,
                 '/swagger.json',
                 endpoint=endpoint,
@@ -260,15 +263,18 @@ class Api(object):
             )
             self.endpoints.add(endpoint)
 
-    def _register_doc(self, app_or_blueprint):
+    def _register_doc(self):
         root_path = self.prefix or '/'
+        (spf, plugin_name, plugin_url_prefix) = self.spf_reg
+        context = restplus.get_context_from_spf(self.spf_reg)
         if self._add_specs and self._doc:
-            # app_or_blueprint.add_url_rule(self._doc, 'doc', self.render_doc)
-            app_or_blueprint.add_route(named_route_fn('{}_doc'.format(str(self._uid)), self.render_doc), self._doc)
+            doc_route_name = '{}.{}_doc'.format(plugin_name, str(self._uid))
+            spf._plugin_register_route(named_route_fn(doc_route_name, self.render_doc), restplus, context, self._doc)
 
         if self._doc != root_path:
             try:# app_or_blueprint.add_url_rule(self.prefix or '/', 'root', self.render_root)
-                app_or_blueprint.add_route(named_route_fn('{}_root'.format(str(self._uid)), self.render_root), root_path)
+                root_route_name = '{}.{}_root'.format(plugin_name, str(self._uid))
+                spf._plugin_register_route(named_route_fn(root_route_name, self.render_root), restplus, context, root_path)
 
             except RouteExists:
                 pass
@@ -283,25 +289,26 @@ class Api(object):
         kwargs['endpoint'] = endpoint
         self.endpoints.add(endpoint)
 
-        if self.app is not None:
-            self._register_view(self.app, resource, *urls, **kwargs)
+        if self.spf_reg is not None:
+            self._register_view(resource, *urls, **kwargs)
         else:
             self.resources.append((resource, urls, kwargs))
         return endpoint
 
-    def _register_view(self, app, resource, *urls, **kwargs):
+    def _register_view(self, resource, *urls, **kwargs):
         endpoint = kwargs.pop('endpoint', None) or camel_to_dash(resource.__name__)
         resource_class_args = kwargs.pop('resource_class_args', ())
         resource_class_kwargs = kwargs.pop('resource_class_kwargs', {})
-
-        # NOTE: 'view_functions' is cleaned up from Blueprint class in Flask 1.0
-        if endpoint in getattr(app, 'view_functions', {}):
-            previous_view_class = app.view_functions[endpoint].__dict__['view_class']
-
-            # if you override the endpoint with a different class, avoid the collision by raising an exception
-            if previous_view_class != resource:
-                msg = 'This endpoint (%s) is already set to the class %s.' % (endpoint, previous_view_class.__name__)
-                raise ValueError(msg)
+        (spf, plugin_name, plugin_url_prefix) = self.spf_reg
+        endpoint = "{}.{}".format(plugin_name, endpoint)
+        # # NOTE: 'view_functions' is cleaned up from Blueprint class in Flask 1.0
+        # if endpoint in getattr(app, 'view_functions', {}):
+        #     previous_view_class = app.view_functions[endpoint].__dict__['view_class']
+        #
+        #     # if you override the endpoint with a different class, avoid the collision by raising an exception
+        #     if previous_view_class != resource:
+        #         msg = 'This endpoint (%s) is already set to the class %s.' % (endpoint, previous_view_class.__name__)
+        #         raise ValueError(msg)
 
         resource.mediatypes = self.mediatypes_method()  # Hacky
         resource.endpoint = endpoint
@@ -312,6 +319,7 @@ class Api(object):
         for decorator in self.decorators:
             resource_func = decorator(resource_func)
 
+        context = restplus.get_context_from_spf(self.spf_reg)
         for url in urls:
             # If this Api has a blueprint
             if self.blueprint:
@@ -330,9 +338,9 @@ class Api(object):
                     rule = partial(self._complete_url, url)
             else:
                 # If we've got no Blueprint, just build a url with no prefix
-                rule = self._complete_url(url, '')
+                rule = self._complete_url(url, plugin_url_prefix)
             # Add the url to the application or blueprint
-            app.add_route(resource_func, rule)
+            spf._plugin_register_route(resource_func, restplus, context, rule)
 
     def output(self, resource):
         '''
@@ -480,7 +488,7 @@ class Api(object):
         :rtype: str
         '''
         try:
-            specs_url = self.app.url_for(self.endpoint('{}_specs'.format(str(self._uid))), _external=False)
+            specs_url = restplus.spf_resolve_url_for(self.spf_reg, self.endpoint('{}_specs'.format(str(self._uid))), _external=False)
         except (AttributeError, KeyError):
             raise RuntimeError("The API object does not have an `app` assigned.")
         return specs_url
@@ -494,9 +502,9 @@ class Api(object):
         root_path = self.prefix or '/'
         try:
             if self._doc == root_path:
-                base_url = self.app.url_for(self.endpoint('{}_doc'.format(str(self._uid))), _external=False)
+                base_url = restplus.spf_resolve_url_for(self.spf_reg, self.endpoint('{}_doc'.format(str(self._uid))), _external=False)
             else:
-                base_url = self.app.url_for(self.endpoint('{}_root'.format(str(self._uid))), _external=False)
+                base_url = restplus.spf_resolve_url_for(self.spf_reg, self.endpoint('{}_root'.format(str(self._uid))), _external=False)
         except (AttributeError, KeyError):
             raise RuntimeError("The API object does not have an `app` assigned.")
         return base_url
@@ -510,11 +518,12 @@ class Api(object):
         :rtype: str
         '''
         root_path = self.prefix or '/'
+        (spf, _, _) = self.spf_reg
         try:
             if self._doc == root_path:
-                base_url = self.app.url_for(self.endpoint('{}_doc'.format(str(self._uid))))
+                base_url = restplus.spf_resolve_url_for(self.spf_reg, self.endpoint('{}_doc'.format(str(self._uid))))
             else:
-                base_url = self.app.url_for(self.endpoint('{}_root'.format(str(self._uid))))
+                base_url = restplus.spf_resolve_url_for(self.spf_reg, self.endpoint('{}_root'.format(str(self._uid))))
         except (AttributeError, KeyError):
             raise RuntimeError("The API object does not have an `app` assigned.")
         return base_url
@@ -662,8 +671,6 @@ class Api(object):
         :param Exception e: the raised Exception object
 
         '''
-        # todo: sanic: wtf is this?
-        #got_request_exception.send(current_app._get_current_object(), exception=e)
         app = request.app
         headers = CIDict()
         if e.__class__ in self.error_handlers:
@@ -707,8 +714,8 @@ class Api(object):
             exc_info = sys.exc_info()
             if exc_info[1] is None:
                 exc_info = None
-            #TODO: Sanic, need to log to app logger here.
-            #current_app.log_exception(exc_info)
+            restplus.log(self.spf_reg, logging.ERROR, exc_info)
+
 
         elif code == HTTPStatus.NOT_FOUND and app.config.get("ERROR_404_HELP", True):
             data['message'] = self._help_on_404(request, data.get('message', None))
@@ -878,9 +885,10 @@ class Api(object):
         Works like :func:`flask.url_for`.
         '''
         endpoint = resource.endpoint
+        (spf, _, _) = self.spf_reg
         if self.blueprint:
             endpoint = '{0}.{1}'.format(self.blueprint.name, endpoint)
-        return self.app.url_for(endpoint, **values)
+        return restplus.spf_resolve_url_for(self.spf_reg, endpoint, **values)
 
 
 class ApiErrorHandler(ErrorHandler):
