@@ -70,9 +70,9 @@ if cur_version >= req_version:
     async def ui_for(request, api):
         '''Render a SwaggerUI for a given API'''
         return await j2.render_async('swagger-ui.html', request, title=api.title,
-                               specs_url=api.specs_url)
+                               specs_url=api.specs_url, additional_css=api.additional_css)
 else:
     def ui_for(request, api):
         '''Render a SwaggerUI for a given API'''
         return j2.render('swagger-ui.html', request, title=api.title,
-                               specs_url=api.specs_url)
+                               specs_url=api.specs_url, additional_css=api.additional_css)

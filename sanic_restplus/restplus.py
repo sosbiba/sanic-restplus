@@ -56,7 +56,7 @@ class RestPlus(SanicPlugin):
         app = context.app
         assert isinstance(app, (Sanic, Blueprint))
         if api_class is None:
-            if args and len(args)>0 and isinstance(args[0], Api):
+            if args and len(args) > 0 and isinstance(args[0], Api):
                 args = list(args)
                 api_class = args.pop(0)
             else:
