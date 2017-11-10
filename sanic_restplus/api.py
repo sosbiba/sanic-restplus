@@ -103,7 +103,7 @@ class Api(object):
             tags=None, prefix='',
             default_mediatype='application/json', decorators=None,
             catch_all_404s=False, serve_challenge_on_401=False, format_checker=None,
-            **kwargs):
+            additional_css=None, **kwargs):
         self.version = version
         self.title = title or 'API'
         self.description = description
@@ -151,6 +151,7 @@ class Api(object):
         self.resources = []
         self.spf_reg = None
         self.blueprint = None
+        self.additional_css = additional_css
         Api.uid_counter += 1
         self._uid = Api.uid_counter
 
@@ -186,6 +187,7 @@ class Api(object):
         self.contact_email = kwargs.get('contact_email', self.contact_email)
         self.license = kwargs.get('license', self.license)
         self.license_url = kwargs.get('license_url', self.license_url)
+        self.additional_css = kwargs.get('additional_css', self.additional_css)
         self._add_specs = kwargs.get('add_specs', True)
 
         (spf, n, u) = reg
