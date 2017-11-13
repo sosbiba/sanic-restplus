@@ -637,6 +637,8 @@ class Api(object):
         try:
             return self._dummy_router_get(app.router, request.method, request)
         except InvalidUsage as e:
+            (_, plugin_name, _) = self.spf_reg
+            plugin_name_prefix = "{}.".format(plugin_name)
             # Check if the other HTTP methods at this url would hit the Api
             try:
                 try_route_method = next(iter(e.valid_methods))
@@ -646,7 +648,10 @@ class Api(object):
                 else:
                     try_route_method = "GET"
             route = self._dummy_router_get(app.router, try_route_method, request)
-            return self.owns_endpoint(route.name)
+            route_endpoint_name = route.name
+            if str(route_endpoint_name).startswith(plugin_name_prefix):
+                route_endpoint_name = route_endpoint_name[len(plugin_name_prefix):]
+            return self.owns_endpoint(route_endpoint_name)
         except NotFound:
             return self.catch_all_404s
         except Exception:
@@ -662,7 +667,12 @@ class Api(object):
         # for all other errors, just check if FR dispatched the route
         if not route or not route.handler or not route.name:
             return False
-        return self.owns_endpoint(route.name)
+        route_endpoint_name = route.name
+        (_, plugin_name, _) = self.spf_reg
+        plugin_name_prefix = "{}.".format(plugin_name)
+        if str(route_endpoint_name).startswith(plugin_name_prefix):
+            route_endpoint_name = route_endpoint_name[len(plugin_name_prefix):]
+        return self.owns_endpoint(route_endpoint_name)
 
 
     def handle_error(self, request, e):
@@ -673,7 +683,8 @@ class Api(object):
         :param Exception e: the raised Exception object
 
         '''
-        app = request.app
+        context = restplus.get_context_from_spf(self.spf_reg)
+        app = context.app
         headers = CIDict()
         if e.__class__ in self.error_handlers:
             handler = self.error_handlers[e.__class__]
@@ -716,7 +727,7 @@ class Api(object):
             exc_info = sys.exc_info()
             if exc_info[1] is None:
                 exc_info = None
-            restplus.log(self.spf_reg, logging.ERROR, exc_info)
+            context.log(logging.ERROR, exc_info)
 
 
         elif code == HTTPStatus.NOT_FOUND and app.config.get("ERROR_404_HELP", True):
@@ -915,7 +926,9 @@ class ApiErrorHandler(ErrorHandler):
             try:
                 return self.api.handle_error(request, e1)
             except Exception as e2:
-                pass  # Fall through to original handler
+                import traceback
+                traceback.print_tb(e2.__traceback__)
+                # Fall through to original handler
         return self.original_handler.response(request, e1)
 
 
