@@ -5,7 +5,6 @@ from sanic import response
 from sanic_restplus import Resource, Api, fields
 from sanic_restplus.utils import get_accept_mimetypes
 
-from flask import Request
 
 app = Sanic(__name__)
 

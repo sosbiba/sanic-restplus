@@ -315,10 +315,11 @@ class Api(object):
         resource.mediatypes = self.mediatypes_method()  # Hacky
         resource.endpoint = endpoint
         resource_func = self.output(resource.as_view(self, *resource_class_args,
-            **resource_class_kwargs))
+                                                     **resource_class_kwargs))
         # hacky, we want to change the __name__ of this func to `endpoint` so it can be found with url_for.
-        resource_func.__name__ = endpoint
+        resource_func = named_route_fn(endpoint, resource_func)
         for decorator in self.decorators:
+            # hopefully all decorators will maintain the name set above.
             resource_func = decorator(resource_func)
 
         context = restplus.get_context_from_spf(self.spf_reg)

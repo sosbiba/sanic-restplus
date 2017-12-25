@@ -66,3 +66,4 @@ doc/_build/
 sanic_restplus/static
 node_modules
 venv35/
+venv36/
