@@ -65,8 +65,6 @@ def config():
     return apidoc.config
 
 
-j2.add_env('swagger_static', swagger_static)
-j2.add_env('config', swagger_static)
 
 # @apidoc.add_app_template_global
 # def swagger_static(filename):
@@ -76,10 +74,14 @@ j2.add_env('config', swagger_static)
 if cur_sanic_version >= async_req_version:
     async def ui_for(request, api):
         '''Render a SwaggerUI for a given API'''
+        j2.add_env('swagger_static', swagger_static)
+        j2.add_env('config', config())
         return await j2.render_async('swagger-ui.html', request, title=api.title,
                                specs_url=api.specs_url, additional_css=api.additional_css)
 else:
     def ui_for(request, api):
         '''Render a SwaggerUI for a given API'''
+        j2.add_env('swagger_static', swagger_static)
+        j2.add_env('config', config())
         return j2.render('swagger-ui.html', request, title=api.title,
                                specs_url=api.specs_url, additional_css=api.additional_css)
