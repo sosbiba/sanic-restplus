@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 
 import decimal
 import six
-from sanic.server import CIDict
+from sanic.server import CIMultiDict
 from sanic import exceptions
 from collections import Hashable
 from copy import deepcopy
@@ -118,13 +118,13 @@ class Argument(object):
         :param request: The flask request object to parse arguments from
         '''
         if isinstance(self.location, six.string_types):
-            value = getattr(request, self.location, CIDict())
+            value = getattr(request, self.location, CIMultiDict())
             if callable(value):
                 value = value()
             if value is not None:
                 return value
         else:
-            values = CIDict()
+            values = CIMultiDict()
             for l in self.location:
                 value = getattr(request, l, None)
                 if callable(value):
@@ -133,7 +133,7 @@ class Argument(object):
                     values.update(value)
             return values
 
-        return CIDict()
+        return CIMultiDict()
 
     def convert(self, value, op):
         # Don't cast None

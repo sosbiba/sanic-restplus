@@ -25,7 +25,7 @@ except ImportError:
     from sanic.response import STATUS_CODES as ALL_STATUS_CODES
 from sanic.handlers import ErrorHandler
 from sanic.exceptions import SanicException, InvalidUsage, NotFound
-from sanic.server import CIDict
+from sanic.server import CIMultiDict
 from sanic import exceptions, Blueprint
 
 
@@ -194,16 +194,16 @@ class Api(object):
         context = restplus.get_context_from_spf(spf)
         app = context.app
         # If app is a blueprint, defer the initialization
-        try:
-            if isinstance(app, Blueprint):
-                raise RuntimeError("As of Sanic 0.4.1, you cannot use Sanic-Restplus on a Blueprint. This will likely "
-                                   "change in the future.")
+        if isinstance(app, Blueprint):
+            raise RuntimeError("As of Sanic 0.7.0, you cannot use Sanic-Restplus on a Blueprint. This will likely "
+                               "change in the future.")
+            # Blueprint has a 'record' attribute, Flask.Api does not
             app.record(self._deferred_blueprint_init)
-        # Flask.Blueprint has a 'record' attribute, Flask.Api does not
-        except AttributeError:
-            self._init_app(app, context)
-        else:
             self.blueprint = app
+        else:
+            self._init_app(app, context)
+
+
 
     def _init_app(self, app, context):
         """
@@ -686,7 +686,7 @@ class Api(object):
         '''
         context = restplus.get_context_from_spf(self.spf_reg)
         app = context.app
-        headers = CIDict()
+        headers = CIMultiDict()
         if e.__class__ in self.error_handlers:
             handler = self.error_handlers[e.__class__]
             result = handler(e)
