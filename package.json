@@ -1,14 +1,15 @@
 {
   "name": "sanic_restplus",
-  "version": "0.10.1",
-  "description": "Fully featured framework for fast, easy and documented API development with Flask",
-  "repository": "noirbizarre/flask-restplus",
+  "version": "0.3.3",
+  "description": "Fully featured framework for fast, easy and documented API development with Sanic",
+  "repository": "ashleysommer/sanic-restplus",
   "keywords": [
     "swagger",
-    "flask"
+    "sanic",
+    "rest"
   ],
-  "author": "Axel Haustant",
-  "license": "ISC",
+  "author": "Ashley Sommer",
+  "license": "MIT",
   "dependencies": {
     "swagger-ui-dist": "^3.4.0",
     "typeface-droid-sans": "0.0.40"

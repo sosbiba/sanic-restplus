@@ -8,13 +8,6 @@ If you are familiar with Sanic, Sanic-RESTPlus should be easy to pick up.
 It provides a coherent collection of decorators and tools to describe your API
 and expose its documentation properly using `Swagger`_.
 
-NOTE:
-=====
-I intend to release Sanic-restplus on pypi when it is finished being ported from Flask to Sanic.
-
-However in its current state I believe it is not yet ready to be submitted to pypi.
-
-There are still references to modules from Flask and Werkzeug in the code, which I need to remove and provide workaround functionality. Also in its current state it will crash, a lot.
 
 Compatibility
 =============

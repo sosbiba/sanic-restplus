@@ -1,14 +1,14 @@
 {
-  "name": "flask-restplus",
-  "version": "0.1.0",
+  "name": "sanic-restplus",
+  "version": "0.3.3",
   "authors": [
-    "Axel Haustant <axel@data.gouv.fr>"
+    "Ashley Sommer <ashleysommer@gmail.com>"
   ],
   "description": "Fully featured framework for fast, easy and documented API development with Flask",
   "keywords": [
-    "flask",
+    "sanic",
     "swagger",
-    "flask-restplus",
+    "sanic-restplus",
     "api",
     "REST"
   ],

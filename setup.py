@@ -8,6 +8,8 @@ import re
 import sys
 
 from setuptools import setup, find_packages
+from setuptools.command.develop import develop
+from setuptools.command.install import install
 
 RE_REQUIREMENT = re.compile(r'^\s*-r\s*(?P<filename>.*)$')
 
@@ -22,6 +24,15 @@ PYPI_RST_FILTERS = (
     # Drop unrecognized currentmodule
     (r'\.\. currentmodule:: .*', ''),
 )
+
+
+
+class PostDevelopCommand(develop):
+    """Post-installation for development mode."""
+    def run(self):
+        # PUT YOUR POST-INSTALL SCRIPT HERE or CALL A FUNCTION
+
+        develop.run(self)
 
 
 def rst(filename):
@@ -80,6 +91,9 @@ setup(
         'test': tests_require,
         'doc': doc_require,
     },
+    cmdclass={
+        'develop': PostDevelopCommand,
+    },
     license='MIT',
     use_2to3=False,
     zip_safe=False,
@@ -95,6 +109,7 @@ setup(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: Implementation :: PyPy',
         'Topic :: Software Development :: Libraries :: Python Modules',
         'License :: OSI Approved :: MIT License',
