@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
+#
+import sys
 import asyncio
 import difflib
 import inspect
 import logging
 import operator
 import re
-import sys
 
 from collections import OrderedDict
 from functools import wraps, partial
@@ -156,19 +155,19 @@ class Api(object):
         self._uid = Api.uid_counter
 
         if spf_reg is not None:
-            self.spf = spf_reg
-            self.init_api(spf_reg)
-        # super(Api, self).__init__(app, **kwargs)
+            self.init_api(reg=spf_reg, **kwargs)
 
-    def init_api(self, reg, **kwargs):
+    def init_api(self, reg=None, **kwargs):
         '''
         Allow to lazy register the API on a SPF instance::
 
         >>> app = Sanic(__name__)
+        >>> spf = SanicPluginsFramework(app)
+        >>> reg = spf.register_plugin(restplus)
         >>> api = Api()
         >>> api.init_api(reg)
 
-        :param sanic.Sanic app: the Flask application object
+        :param PluginRegistration reg: The reg handle of the extension registered against the app
         :param str title: The API title (used in Swagger documentation)
         :param str description: The API description (used in Swagger documentation)
         :param str terms_url: The API terms page URL (used in Swagger documentation)
@@ -178,7 +177,10 @@ class Api(object):
 
         '''
         if self.spf_reg is None:
-            self.spf_reg = reg
+            if reg is not None:
+                self.spf_reg = reg
+            else:
+                raise RuntimeError("Cannot init_api without self.spf_reg")
         self.title = kwargs.get('title', self.title)
         self.description = kwargs.get('description', self.description)
         self.terms_url = kwargs.get('terms_url', self.terms_url)
@@ -190,8 +192,7 @@ class Api(object):
         self.additional_css = kwargs.get('additional_css', self.additional_css)
         self._add_specs = kwargs.get('add_specs', True)
 
-        (spf, n, u) = reg
-        context = restplus.get_context_from_spf(spf)
+        context = restplus.get_context_from_spf(self.spf_reg)
         app = context.app
         # If app is a blueprint, defer the initialization
         if isinstance(app, Blueprint):
@@ -303,17 +304,11 @@ class Api(object):
         resource_class_kwargs = kwargs.pop('resource_class_kwargs', {})
         (spf, plugin_name, plugin_url_prefix) = self.spf_reg
         endpoint = "{}.{}".format(plugin_name, endpoint)
-        # # NOTE: 'view_functions' is cleaned up from Blueprint class in Flask 1.0
-        # if endpoint in getattr(app, 'view_functions', {}):
-        #     previous_view_class = app.view_functions[endpoint].__dict__['view_class']
-        #
-        #     # if you override the endpoint with a different class, avoid the collision by raising an exception
-        #     if previous_view_class != resource:
-        #         msg = 'This endpoint (%s) is already set to the class %s.' % (endpoint, previous_view_class.__name__)
-        #         raise ValueError(msg)
-
         resource.mediatypes = self.mediatypes_method()  # Hacky
         resource.endpoint = endpoint
+        methods = resource.methods
+        if methods is None or len(methods) < 1:
+            methods = ['GET']
         resource_func = self.output(resource.as_view(self, *resource_class_args,
                                                      **resource_class_kwargs))
         # hacky, we want to change the __name__ of this func to `endpoint` so it can be found with url_for.
@@ -343,7 +338,8 @@ class Api(object):
                 # If we've got no Blueprint, just build a url with no prefix
                 rule = self._complete_url(url, plugin_url_prefix)
             # Add the url to the application or blueprint
-            spf._plugin_register_route(resource_func, restplus, context, rule)
+            spf._plugin_register_route(resource_func, restplus, context, rule,
+                                       methods=methods, with_context=True, **kwargs)
 
     def output(self, resource):
         '''
@@ -355,7 +351,7 @@ class Api(object):
         @wraps(resource)
         async def wrapper(request, *args, **kwargs):
             resp = resource(request, *args, **kwargs)
-            while asyncio.iscoroutine(resp):
+            while inspect.isawaitable(resp):
                 resp = await resp
             if isinstance(resp, HTTPResponse):
                 return resp

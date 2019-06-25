@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 import asyncio
+import inspect
 from collections import OrderedDict
 from functools import wraps
 
@@ -123,7 +122,7 @@ class marshal_with(object):
 
             if self.mask_header:
                 mask = request.headers.get(self.mask_header) or mask
-            while asyncio.iscoroutine(resp):
+            while inspect.isawaitable(resp):
                 resp = await resp
             if isinstance(resp, tuple):
                 data, code, headers = unpack(resp)

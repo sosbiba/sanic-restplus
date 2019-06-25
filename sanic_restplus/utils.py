@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
+#
 import re
-
 from collections import OrderedDict
 from copy import deepcopy
 from six import iteritems
@@ -24,17 +22,17 @@ __all__ = ('merge', 'camel_to_dash', 'default_id', 'not_none', 'not_none_sorted'
 
 
 def merge(first, second):
-    '''
-    Recursively merges two dictionnaries.
+    """
+    Recursively merges two dictionaries.
 
-    Second dictionnary values will take precedance over those from the first one.
-    Nested dictionnaries are merged too.
+    Second dictionary values will take precedence over those from the first one.
+    Nested dictionaries are merged too.
 
-    :param dict first: The first dictionnary
-    :param dict second: The second dictionnary
-    :return: the resulting merged dictionnary
+    :param dict first: The first dictionary
+    :param dict second: The second dictionary
+    :return: the resulting merged dictionary
     :rtype: dict
-    '''
+    """
     if not isinstance(second, dict):
         return second
     result = deepcopy(first)

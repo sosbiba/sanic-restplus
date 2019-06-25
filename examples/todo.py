@@ -1,17 +1,14 @@
-from flask import Flask
-from flask_restplus import Api, Resource, fields
-from werkzeug.contrib.fixers import ProxyFix
+from sanic import Sanic
 
-"""
-NOTE: * This is a Flask-restplus example and does not apply to Sanic-Restplus *
-      * For a Sanic-Restplus example, see the Readme.rst file *
-"""
+from sanic_restplus import Api, fields, Resource
+from sanic_restplus.restplus import restplus
+from spf import SanicPluginsFramework
+app = Sanic(__name__)
+spf = SanicPluginsFramework(app)
+rest_assoc = spf.register_plugin(restplus)
 
-app = Flask(__name__)
-app.wsgi_app = ProxyFix(app.wsgi_app)
-api = Api(app, version='1.0', title='Todo API',
-    description='A simple TODO API',
-)
+api = Api(version='1.0', title='Todo API',
+          description='A simple TODO API')
 
 ns = api.namespace('todos', description='TODO operations')
 
@@ -39,13 +36,13 @@ parser = api.parser()
 parser.add_argument('task', type=str, required=True, help='The task details', location='form')
 
 
-@ns.route('/<todo_id:str>')
+@ns.route('/<todo_id>')
 @api.doc(responses={404: 'Todo not found'}, params={'todo_id': 'The Todo ID'})
 class Todo(Resource):
     '''Show a single todo item and lets you delete them'''
     @api.doc(description='todo_id should be in {0}'.format(', '.join(TODOS.keys())))
     @api.marshal_with(todo)
-    def get(self, request, todo_id):
+    async def get(self, request, todo_id, context):
         '''Fetch a given resource'''
         abort_if_todo_doesnt_exist(todo_id)
         return TODOS[todo_id]
@@ -59,9 +56,10 @@ class Todo(Resource):
 
     @api.doc(parser=parser)
     @api.marshal_with(todo)
-    def put(self, request, todo_id):
+    def put(self, request, context, todo_id):
         '''Update a given resource'''
-        args = parser.parse_args(request)
+        req_context = context['request'][id(request)]
+        args = parser.parse_args(request, req_context)
         task = {'task': args['task']}
         TODOS[todo_id] = task
         return task
@@ -71,19 +69,21 @@ class Todo(Resource):
 class TodoList(Resource):
     '''Shows a list of all todos, and lets you POST to add new tasks'''
     @api.marshal_list_with(listed_todo)
-    def get(self, request):
+    async def get(self, request, context):
         '''List all todos'''
         return [{'id': id, 'todo': todo} for id, todo in TODOS.items()]
 
     @api.doc(parser=parser)
     @api.marshal_with(todo, code=201)
-    def post(self, request):
+    async def post(self, request, context=None):
         '''Create a todo'''
-        args = parser.parse_args(request)
+        req_context = context['request'][id(request)]
+        args = parser.parse_args(request, req_context)
         todo_id = 'todo%d' % (len(TODOS) + 1)
         TODOS[todo_id] = {'task': args['task']}
         return TODOS[todo_id], 201
 
+rest_assoc.api(api)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, auto_reload=False)

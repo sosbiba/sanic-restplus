@@ -5,7 +5,7 @@ from examples.zoo import api
 
 app = Sanic(__name__)
 spf = SanicPluginsFramework(app)
-reg = spf.register_plugin(restplus)
-reg.api(api)
+rest_assoc = spf.register_plugin(restplus)
+rest_assoc.api(api)
 
 app.run(debug=True)

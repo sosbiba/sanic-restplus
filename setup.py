@@ -67,11 +67,11 @@ long_description = '\n'.join((
 ))
 
 
-exec(compile(open('sanic_restplus/__about__.py').read(), 'sanic_restplus/__about__.py', 'exec'))
+exec(compile(open('sanic_restplus/__about__.py', encoding="latin-1").read(), 'sanic_restplus/__about__.py', 'exec'))
 
 install_requires = pip('install')
-if sys.version_info < (3, 4):
-    install_requires += ['enum34']
+if sys.version_info < (3, 5):
+    raise RuntimeError("Cannot install on Python version < 3.5")
 doc_require = pip('doc')
 tests_require = pip('test')
 

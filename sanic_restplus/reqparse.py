@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
+#
 import decimal
 import six
 from sanic.server import CIMultiDict
@@ -181,7 +180,7 @@ class Argument(object):
             return ValueError(error), errors
         abort(HTTPStatus.BAD_REQUEST, 'Input payload validation failed', errors=errors)
 
-    def parse(self, request, bundle_errors=False):
+    def parse(self, request, req_context, bundle_errors=False):
         '''
         Parses argument value(s) from the request, converting according to
         the argument's type.
@@ -237,8 +236,8 @@ class Argument(object):
                         msg = 'The value \'{0}\' is not a valid choice for \'{1}\'.'.format(value, name)
                         return self.handle_validation_error(msg, bundle_errors)
 
-                    if name in request.unparsed_arguments:
-                        request.unparsed_arguments.pop(name)
+                    if name in req_context.unparsed_arguments:
+                        req_context.unparsed_arguments.pop(name)
                     results.append(value)
 
         if not results and self.required:
@@ -340,7 +339,7 @@ class RequestParser(object):
 
         return self
 
-    def parse_args(self, req, strict=False):
+    def parse_args(self, req, req_context, strict=False):
         '''
         Parse all arguments from the provided request and return the results as a ParseResult
 
@@ -352,10 +351,11 @@ class RequestParser(object):
 
         # A record of arguments not yet parsed; as each is found
         # among self.args, it will be popped out
-        req.unparsed_arguments = dict(self.argument_class('').source(req)) if strict else {}
+        unparsed_arguments = dict(self.argument_class('').source(req)) if strict else {}
+        req_context['unparsed_arguments'] = unparsed_arguments
         errors = {}
         for arg in self.args:
-            value, found = arg.parse(req, self.bundle_errors)
+            value, found = arg.parse(req, req_context, self.bundle_errors)
             if isinstance(value, ValueError):
                 errors.update(found)
                 found = None
@@ -364,11 +364,10 @@ class RequestParser(object):
         if errors:
             abort(HTTPStatus.BAD_REQUEST, 'Input payload validation failed', errors=errors)
 
-        if strict and req.unparsed_arguments:
-            arguments = ', '.join(req.unparsed_arguments.keys())
+        if strict and unparsed_arguments:
+            arguments = ', '.join(unparsed_arguments.keys())
             msg = 'Unknown arguments: {0}'.format(arguments)
-            raise exceptions.SanicException("Bad Request", status_code=405)
-
+            raise exceptions.SanicException("Bad Request: {}".format(msg), status_code=405)
         return result
 
     def copy(self):

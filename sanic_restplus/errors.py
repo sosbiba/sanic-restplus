@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
+#
 from sanic import exceptions
 
 from ._http import HTTPStatus
@@ -14,7 +13,7 @@ __all__ = (
 
 
 def abort(code=HTTPStatus.INTERNAL_SERVER_ERROR, message=None, **kwargs):
-    '''
+    """
     Properly abort the current request.
 
     Raise a `HTTPException` for the given status `code`.
@@ -24,11 +23,12 @@ def abort(code=HTTPStatus.INTERNAL_SERVER_ERROR, message=None, **kwargs):
     :param str message: An optional details message
     :param kwargs: Any additional data to pass to the error payload
     :raise HTTPException:
-    '''
+    """
     raise exceptions.SanicException(message=message, status_code=code)
 
+
 class RestError(Exception):
-    '''Base class for all Flask-Restplus Errors'''
+    """Base class for all Flask-Restplus Errors"""
     def __init__(self, msg):
         self.msg = msg
 
@@ -37,10 +37,10 @@ class RestError(Exception):
 
 
 class ValidationError(RestError):
-    '''An helper class for validation errors.'''
+    """An helper class for validation errors."""
     pass
 
 
 class SpecsError(RestError):
-    '''An helper class for incoherent specifications.'''
+    """An helper class for incoherent specifications."""
     pass

@@ -40,11 +40,14 @@ With Sanic-Restplus, you only import the api instance to route and document your
 
     from sanic import Sanic
     from sanic_restplus import Api, Resource, fields
-
+    from sanic_restplus.restplus import restplus
+    from spf import SanicPluginsFramework
     app = Sanic(__name__)
-    api = Api(app, version='1.0', title='TodoMVC API',
-              description='A simple TodoMVC API',
-              )
+    spf = SanicPluginsFramework(app)
+    rest_assoc = spf.register_plugin(restplus)
+
+    api = Api(version='1.0', title='TodoMVC API',
+              description='A simple TodoMVC API')
 
     ns = api.namespace('todos', description='TODO operations')
 
@@ -130,9 +133,10 @@ With Sanic-Restplus, you only import the api instance to route and document your
             '''Update a task given its identifier'''
             return DAO.update(id, request.json)
 
+    rest_assoc.api(api)
 
     if __name__ == '__main__':
-        app.run(debug=True)
+        app.run(debug=True, auto_reload=False)
 
 
 

@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
+#
 from calendar import timegm
 from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_EVEN
@@ -22,9 +21,9 @@ __all__ = ('Raw', 'String', 'FormattedString', 'Url', 'DateTime', 'Date',
 
 
 class MarshallingError(RestError):
-    '''
+    """
     This is an encapsulating Exception in case of marshalling error.
-    '''
+    """
     def __init__(self, underlying_exception):
         # just put the contextual representation of the error to hint on what
         # went wrong without exposing internals
