@@ -118,7 +118,7 @@ class Resource(MethodViewExt, metaclass=ResourceMeta):
         expected, True if a collection of objects of a resource is expected.
         '''
         # TODO: proper content negotiation
-        data = request.get_json()
+        data = request.json
         if collection:
             data = data if isinstance(data, list) else [data]
             for obj in data:
