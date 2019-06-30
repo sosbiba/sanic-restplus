@@ -4,6 +4,7 @@ import copy
 import re
 import warnings
 
+from methodtools import lru_cache
 from collections import OrderedDict, MutableMapping
 from six import iteritems, itervalues
 
@@ -155,6 +156,7 @@ class Model(ModelBase, OrderedDict, MutableMapping):
         })
 
     @property
+    @lru_cache
     def resolved(self):
         '''
         Resolve real fields before submitting them to marshal
