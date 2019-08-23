@@ -2,7 +2,6 @@
 #
 import decimal
 import six
-from sanic.server import CIMultiDict
 from sanic import exceptions
 from collections import Hashable
 from copy import deepcopy
@@ -11,6 +10,11 @@ from .errors import abort, SpecsError
 from .marshalling import marshal
 from .model import Model
 from ._http import HTTPStatus
+
+try:
+    from sanic.compat import CIMultiDict
+except ImportError:
+    from sanic.server import CIMultiDict
 
 
 class ParseResult(dict):
