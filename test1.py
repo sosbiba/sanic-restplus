@@ -1,14 +1,18 @@
-import operator
-
-from sanic import Sanic
+from sanic import Sanic, Blueprint
 from sanic import response
-from sanic_restplus import Resource, Api, fields
-from sanic_restplus.utils import get_accept_mimetypes
+from spf import SanicPluginsFramework
 
+from sanic_restplus import restplus, Resource, Api, fields
+from sanic_restplus.utils import get_accept_mimetypes
+from util import ns as util_ns
 
 app = Sanic(__name__)
-
-api = Api(app)
+bp = Blueprint("bp1", url_prefix="/bp1/")
+spf_b = SanicPluginsFramework(bp)
+reg = spf_b.register_plugin(restplus)
+api = Api()
+api.add_namespace(util_ns, "/data/v2/electrical")
+reg.api(api)
 
 todos = {}
 

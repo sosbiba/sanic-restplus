@@ -84,6 +84,10 @@ setup(
     author='Ashley Sommer',
     author_email='ashleysommer@gmail.com',
     packages=find_packages(exclude=['tests', 'tests.*']),
+    entry_points={
+        'sanic_plugins':
+            ['RestPlus = sanic_restplus.restplus:instance']
+    },
     include_package_data=True,
     install_requires=install_requires,
     tests_require=tests_require,
