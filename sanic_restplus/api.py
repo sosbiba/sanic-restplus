@@ -24,9 +24,14 @@ except ImportError:
     from sanic.response import STATUS_CODES as ALL_STATUS_CODES
 from sanic.handlers import ErrorHandler
 from sanic.exceptions import SanicException, InvalidUsage, NotFound
-from sanic.server import CIMultiDict
 from sanic import exceptions, Blueprint
-
+try:
+    from sanic.compat import Header
+except ImportError:
+    try:
+        from sanic.server import CIMultiDict as Header
+    except ImportError:
+        from sanic.server import CIDict as Header
 
 from jsonschema import RefResolver
 
@@ -682,7 +687,7 @@ class Api(object):
         '''
         context = restplus.get_context_from_spf(self.spf_reg)
         app = context.app
-        headers = CIMultiDict()
+        headers = Header()
         if e.__class__ in self.error_handlers:
             handler = self.error_handlers[e.__class__]
             result = handler(e)

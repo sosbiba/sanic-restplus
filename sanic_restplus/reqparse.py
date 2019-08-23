@@ -14,8 +14,10 @@ from ._http import HTTPStatus
 try:
     from sanic.compat import CIMultiDict
 except ImportError:
-    from sanic.server import CIMultiDict
-
+    try:
+        from sanic.server import CIMultiDict
+    except ImportError:
+        from sanic.server import CIDict as CIMultiDict
 
 class ParseResult(dict):
     '''
