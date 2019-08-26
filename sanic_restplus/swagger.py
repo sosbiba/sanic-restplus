@@ -9,7 +9,6 @@ try:
     from collections.abc import Hashable
 except ImportError:
     from collections import Hashable
-from six import string_types, itervalues, iteritems, iterkeys
 
 from . import fields
 from.restplus import restplus
@@ -111,7 +110,7 @@ def _param_to_header(param):
 
 
 def _clean_header(header):
-    if isinstance(header, string_types):
+    if isinstance(header, str):
         header = {'description': header}
     typedef = header.get('type', 'string')
     if isinstance(typedef, Hashable) and typedef in PY_TYPES:
@@ -225,7 +224,7 @@ class Swagger(object):
             'basePath': basepath,
             'paths': not_none_sorted(paths),
             'info': infos,
-            'produces': list(iterkeys(self.api.representations)),
+            'produces': list(self.api.representations.keys()),
             'consumes': ['application/json'],
             'securityDefinitions': self.api.authorizations or None,
             'security': self.security_requirements(self.api.security) or None,
@@ -247,7 +246,7 @@ class Swagger(object):
         tags = []
         by_name = {}
         for tag in api.tags:
-            if isinstance(tag, string_types):
+            if isinstance(tag, str):
                 tag = {'name': tag}
             elif isinstance(tag, (list, tuple)):
                 tag = {'name': tag[0], 'description': tag[1]}
@@ -310,7 +309,7 @@ class Swagger(object):
                 method_doc['docstring'] = parse_docstring(method_impl)
                 method_params = self.expected_params(method_doc)
                 method_params = merge(method_params, method_doc.get('params', {}))
-                inherited_params = OrderedDict((k, v) for k, v in iteritems(params) if k in method_params)
+                inherited_params = OrderedDict((k, v) for k, v in params.items() if k in method_params)
                 method_doc['params'] = merge(inherited_params, method_params)
                 for name, param in method_doc['params'].items():
                     key = (name, param.get('in', 'query'))
@@ -375,7 +374,7 @@ class Swagger(object):
 
     def register_errors(self):
         responses = {}
-        for exception, handler in iteritems(self.api.error_handlers):
+        for exception, handler in self.api.error_handlers.items():
             doc = parse_docstring(handler)
             response = {
                 'description': doc['summary']
@@ -437,7 +436,7 @@ class Swagger(object):
         '''
         return dict(
             (k if k.startswith('x-') else 'x-{0}'.format(k), v)
-            for k, v in iteritems(doc[method].get('vendor', {}))
+            for k, v in doc[method].get('vendor', {}).items()
         )
 
     def description_for(self, doc, method):
@@ -458,7 +457,7 @@ class Swagger(object):
 
     def parameters_for(self, doc):
         params = []
-        for name, param in iteritems(doc['params']):
+        for name, param in doc['params'].items():
             param['name'] = name
             if 'type' not in param and 'schema' not in param:
                 param['type'] = 'string'
@@ -488,7 +487,7 @@ class Swagger(object):
                 'format': 'mask',
                 'description': 'An optional fields mask',
             }
-            if isinstance(mask, string_types):
+            if isinstance(mask, str):
                 param['default'] = mask
             params.append(param)
         return params
@@ -499,8 +498,8 @@ class Swagger(object):
 
         for d in doc, doc[method]:
             if 'responses' in d:
-                for code, response in iteritems(d['responses']):
-                    if isinstance(response, string_types):
+                for code, response in d['responses'].items():
+                    if isinstance(response, str):
                         description = response
                         model = None
                         kwargs = {}
@@ -526,8 +525,8 @@ class Swagger(object):
                 responses[code]['schema'] = self.serialize_schema(d['model'])
 
             if 'docstring' in d:
-                for name, description in iteritems(d['docstring']['raises']):
-                    for exception, handler in iteritems(self.api.error_handlers):
+                for name, description in d['docstring']['raises'].items():
+                    for exception, handler in self.api.error_handlers.items():
                         error_responses = getattr(handler, '__apidoc__', {}).get('responses', {})
                         code = list(error_responses.keys())[0] if error_responses else None
                         if code and exception.__name__ == name:
@@ -544,9 +543,9 @@ class Swagger(object):
             response['headers'] = dict(
                 (k, _clean_header(v)) for k, v
                 in itertools.chain(
-                    iteritems(doc.get('headers', {})),
-                    iteritems(method_doc.get('headers', {})),
-                    iteritems(headers or {})
+                    doc.get('headers', {}).items(),
+                    method_doc.get('headers', {}).items(),
+                    (headers or {}).items()
                 )
             )
         return response
@@ -554,7 +553,7 @@ class Swagger(object):
     def serialize_definitions(self):
         return dict(
             (name, model.__schema__)
-            for name, model in iteritems(self._registered_models)
+            for name, model in self._registered_models.items()
         )
 
     def serialize_schema(self, model):
@@ -569,7 +568,7 @@ class Swagger(object):
             self.register_model(model)
             return ref(model)
 
-        elif isinstance(model, string_types):
+        elif isinstance(model, str):
             self.register_model(model)
             return ref(model)
 
@@ -594,13 +593,13 @@ class Swagger(object):
             for parent in specs.__parents__:
                 self.register_model(parent)
         if isinstance(specs, Model):
-            for field in itervalues(specs):
+            for field in specs.values():
                 self.register_field(field)
         return ref(model)
 
     def register_field(self, field):
         if isinstance(field, fields.Polymorph):
-            for model in itervalues(field.mapping):
+            for model in field.mapping.values():
                 self.register_model(model)
         elif isinstance(field, fields.Nested):
             self.register_model(field.nested)
@@ -629,12 +628,12 @@ class Swagger(object):
             return []
 
     def security_requirement(self, value):
-        if isinstance(value, (string_types)):
+        if isinstance(value, str):
             return {value: []}
         elif isinstance(value, dict):
             return dict(
                 (k, v if isinstance(v, (list, tuple)) else [v])
-                for k, v in iteritems(value)
+                for k, v in value.items()
             )
         else:
             return None

@@ -8,9 +8,10 @@ from calendar import timegm
 from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_EVEN
 from email.utils import formatdate
+from functools import lru_cache
 
-from six import iteritems, itervalues, text_type, string_types
-from six.moves.urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse, urlunparse
+
 
 from .inputs import date_from_iso8601, datetime_from_iso8601, datetime_from_rfc822, boolean
 from .errors import RestError
@@ -31,7 +32,7 @@ class MarshallingError(RestError):
     def __init__(self, underlying_exception):
         # just put the contextual representation of the error to hint on what
         # went wrong without exposing internals
-        super(MarshallingError, self).__init__(text_type(underlying_exception))
+        super(MarshallingError, self).__init__(str(underlying_exception))
 
 
 def is_indexable_but_not_string(obj):
@@ -165,8 +166,8 @@ class Raw(object):
         value = getattr(self, key)
         return value() if callable(value) else value
 
-    #@cached_property
     @property
+    @lru_cache()
     def __schema__(self):
         return not_none(self.schema())
 
@@ -361,9 +362,7 @@ class NumberMixin(MinMaxMixin):
 
 class String(StringMixin, Raw):
     '''
-    Marshal a value as a string. Uses ``six.text_type`` so values will
-    be converted to :class:`unicode` in python2 and :class:`str` in
-    python3.
+    Marshal a value as a string.
     '''
     def __init__(self, *args, **kwargs):
         self.enum = kwargs.pop('enum', None)
@@ -373,7 +372,7 @@ class String(StringMixin, Raw):
 
     def format(self, value):
         try:
-            return text_type(value)
+            return str(value)
         except ValueError as ve:
             raise MarshallingError(ve)
 
@@ -426,7 +425,7 @@ class Arbitrary(NumberMixin, Raw):
     '''
 
     def format(self, value):
-        return text_type(Decimal(value))
+        return str(Decimal(value))
 
 
 ZERO = Decimal()
@@ -444,7 +443,7 @@ class Fixed(NumberMixin, Raw):
         dvalue = Decimal(value)
         if not dvalue.is_normal() and dvalue != ZERO:
             raise MarshallingError('Invalid Fixed precision number.')
-        return text_type(dvalue.quantize(self.precision, rounding=ROUND_HALF_EVEN))
+        return str(dvalue.quantize(self.precision, rounding=ROUND_HALF_EVEN))
 
 
 class Boolean(Raw):
@@ -479,7 +478,7 @@ class DateTime(MinMaxMixin, Raw):
     def parse(self, value):
         if value is None:
             return None
-        elif isinstance(value, string_types):
+        elif isinstance(value, str):
             parser = datetime_from_iso8601 if self.dt_format == 'iso8601' else datetime_from_rfc822
             return parser(value)
         elif isinstance(value, datetime):
@@ -548,7 +547,7 @@ class Date(DateTime):
     def parse(self, value):
         if value is None:
             return None
-        elif isinstance(value, string_types):
+        elif isinstance(value, str):
             return date_from_iso8601(value)
         elif isinstance(value, datetime):
             return value.date()
@@ -573,6 +572,7 @@ class Url(StringMixin, Raw):
         self.scheme = scheme
 
     def output(self, key, obj, **kwargs):
+        raise NotImplementedError("fields.Url is not implemented on Sanic-Restplus")
         try:
             data = to_marshallable_type(obj)
             endpoint = self.endpoint if self.endpoint is not None else request.endpoint
@@ -607,7 +607,7 @@ class FormattedString(StringMixin, Raw):
     '''
     def __init__(self, src_str, **kwargs):
         super(FormattedString, self).__init__(**kwargs)
-        self.src_str = text_type(src_str)
+        self.src_str = str(src_str)
 
     def output(self, key, obj, **kwargs):
         try:
@@ -655,7 +655,7 @@ class Polymorph(Nested):
     '''
     def __init__(self, mapping, required=False, **kwargs):
         self.mapping = mapping
-        parent = self.resolve_ancestor(list(itervalues(mapping)))
+        parent = self.resolve_ancestor(list(mapping.values()))
         super(Polymorph, self).__init__(parent, allow_null=not required, **kwargs)
 
     def output(self, key, obj, ordered=False, **kwargs):
@@ -671,7 +671,7 @@ class Polymorph(Nested):
         if not hasattr(value, '__class__'):
             raise ValueError('Polymorph field only accept class instances')
 
-        candidates = [fields for cls, fields in iteritems(self.mapping) if isinstance(value, cls)]
+        candidates = [fields for cls, fields in self.mapping.items() if isinstance(value, cls)]
 
         if len(candidates) <= 0:
             raise ValueError('Unknown class: ' + value.__class__.__name__)
@@ -736,7 +736,7 @@ class Wildcard(Raw):
         if obj == self._obj and self._flat is not None:
             return self._flat
         if isinstance(obj, dict):
-            self._flat = [x for x in iteritems(obj)]
+            self._flat = [(k,v) for k,v in obj.items()]
         else:
 
             def __match_attributes(attribute):

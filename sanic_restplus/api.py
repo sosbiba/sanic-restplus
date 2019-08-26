@@ -10,12 +10,8 @@ import operator
 import re
 
 from collections import OrderedDict
-from functools import wraps, partial
+from functools import wraps, partial, lru_cache
 from types import MethodType
-
-# from flask import url_for, request, current_app
-# from flask import make_response as original_flask_make_response
-# from flask.helpers import _endpoint_from_view_func
 
 from sanic.router import RouteExists, url_hash
 from sanic.response import HTTPResponse, text
@@ -228,8 +224,8 @@ class Api(object):
         #app.handle_user_exception = partial(self.error_router, app.handle_user_exception)
 
         if len(self.resources) > 0:
-            for resource, urls, kwargs in self.resources:
-                self._register_view(resource, *urls, **kwargs)
+            for resource, namespace, urls, kwargs in self.resources:
+                self._register_view(resource, namespace, *urls, **kwargs)
 
         self._register_apidoc(app)
         self._validate = self._validate if self._validate is not None else app.config.get('RESTPLUS_VALIDATE', False)
@@ -281,18 +277,26 @@ class Api(object):
         context = restplus.get_context_from_spf(self.spf_reg)
         if self._add_specs and self._doc:
             doc_route_name = '{}.{}_doc'.format(plugin_name, str(self._uid))
-            spf._plugin_register_route(named_route_fn(doc_route_name, self.render_doc), restplus, context, self._doc)
+
+            def _render_doc(*args, **kwargs):
+                nonlocal self
+                return self.render_doc(*args, **kwargs)
+            render_doc = wraps(self.render_doc)(_render_doc)
+            render_doc.__name__ = doc_route_name
+            spf._plugin_register_route(render_doc, restplus, context, self._doc)
 
         if self._doc != root_path:
             try:# app_or_blueprint.add_url_rule(self.prefix or '/', 'root', self.render_root)
                 root_route_name = '{}.{}_root'.format(plugin_name, str(self._uid))
-                spf._plugin_register_route(named_route_fn(root_route_name, self.render_root), restplus, context, root_path)
+                def _render_root(*args, **kwargs):
+                    nonlocal self
+                    return self.render_root(*args, **kwargs)
+                render_root = wraps(self.render_root)(_render_root)
+                render_root.__name__ = root_route_name
+                spf._plugin_register_route(render_root, restplus, context, root_path)
 
             except RouteExists:
                 pass
-
-
-
 
     def register_resource(self, namespace, resource, *urls, **kwargs):
         endpoint = kwargs.pop('endpoint', None)
@@ -318,10 +322,8 @@ class Api(object):
         methods = resource.methods
         if methods is None or len(methods) < 1:
             methods = ['GET']
-        resource_func = self.output(resource.as_view(endpoint, self, *resource_class_args,
-                                                     **resource_class_kwargs))
-        # hacky, we want to change the __name__ of this func to `endpoint` so it can be found with url_for.
-        resource_func = named_route_fn(endpoint, resource_func)
+        resource_func = self.output(resource.as_view_named(endpoint, self, *resource_class_args,
+                                                           **resource_class_kwargs))
         for decorator in chain(namespace.decorators, self.decorators):
             resource_func = decorator(resource_func)
 
@@ -466,7 +468,7 @@ class Api(object):
             urls = self.ns_urls(ns, r.urls)
             self.register_resource(ns, r.resource, *urls, **r.kwargs)
         # Register models
-        for name, definition in six.iteritems(ns.models):
+        for name, definition in ns.models.items():
             self.models[name] = definition
 
     def namespace(self, *args, **kwargs):
@@ -534,8 +536,8 @@ class Api(object):
             raise RuntimeError("The API object does not have an `app` assigned.")
         return base_url
 
-    #@cached_property
     @property
+    @lru_cache()
     def __schema__(self):
         '''
         The Swagger specifications/schema for this API
@@ -558,7 +560,7 @@ class Api(object):
         rv = {}
         rv.update(self.error_handlers)
         for ns in self.namespaces:
-            for exception, handler in six.iteritems(ns.error_handlers):
+            for exception, handler in ns.error_handlers.items():
                 rv[exception] = handler
         return rv
 
@@ -698,18 +700,18 @@ class Api(object):
         '''
         context = restplus.get_context_from_spf(self.spf_reg)
         app = context.app
-        got_request_exception.send(app._get_current_object(), exception=e)
-        if not isinstance(e, SanicException) and current_app.propagate_exceptions:
+        #got_request_exception.send(app._get_current_object(), exception=e)
+        if not isinstance(e, SanicException) and app.propagate_exceptions:
             exc_type, exc_value, tb = sys.exc_info()
             if exc_value is e:
                 raise
             else:
                 raise e
 
-        include_message_in_response = current_app.config.get("ERROR_INCLUDE_MESSAGE", True)
+        include_message_in_response = app.config.get("ERROR_INCLUDE_MESSAGE", True)
         default_data = {}
         headers = Header()
-        for typecheck, handler in six.iteritems(self._own_and_child_error_handlers):
+        for typecheck, handler in self._own_and_child_error_handlers.items():
             if isinstance(e, typecheck):
                 result = handler(e)
                 default_data, code, headers = unpack(result, HTTPStatus.INTERNAL_SERVER_ERROR)
@@ -870,7 +872,7 @@ class Api(object):
             setup_state.add_url_rule = MethodType(Api._blueprint_setup_add_url_rule_patch,
                                                   setup_state)
         if not setup_state.first_registration:
-            raise ValueError('flask-restplus blueprints can only be registered once.')
+            raise ValueError('sanic-restplus blueprints can only be registered once.')
         self._init_app(setup_state.app)
 
     def mediatypes_method(self):
@@ -914,7 +916,7 @@ class Api(object):
         '''Given a response, change it to ask for credentials'''
         # TODO: Sanic implement serve_challenge_on_401 for Sanic
         #if self.serve_challenge_on_401:
-        #    realm = current_app.config.get("HTTP_BASIC_AUTH_REALM", "flask-restplus")
+        #    realm = current_app.config.get("HTTP_BASIC_AUTH_REALM", "sanic-restplus")
         #    challenge = u"{0} realm=\"{1}\"".format("Basic", realm)
         #
         #    response.headers['WWW-Authenticate'] = challenge
@@ -924,7 +926,7 @@ class Api(object):
         '''
         Generates a URL to the given resource.
 
-        Works like :func:`flask.url_for`.
+        Works like :func:`app.url_for`.
         '''
         endpoint = resource.endpoint
         (spf, _, _) = self.spf_reg
@@ -970,23 +972,6 @@ class SwaggerView(Resource):
     def mediatypes(self):
         return ['application/json']
 
-class named_route_fn(object):
-    __slots__ = ['__name', 'fn']
-
-    def __init__(self, name, fn):
-        self.__name = name
-        self.fn = fn
-
-    @property
-    def __name__(self):
-        return self.__name
-
-    @__name__.setter
-    def __name__(self, val):
-        self.__name = val
-
-    def __call__(self, *args, **kwargs):
-        return self.fn(*args, **kwargs)
 
 def mask_parse_error_handler(error):
     '''When a mask can't be parsed'''

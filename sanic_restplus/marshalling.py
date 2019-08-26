@@ -3,7 +3,6 @@ import asyncio
 import inspect
 from collections import OrderedDict
 from functools import wraps
-from six import iteritems
 
 from .mask import Mask, apply as apply_mask
 from .utils import unpack
@@ -175,7 +174,7 @@ def _marshal(data, fields, envelope=None, skip_none=False, mask=None, ordered=Fa
         (k, marshal(data, v, skip_none=skip_none, ordered=ordered))
         if isinstance(v, dict)
         else __format_field(k, v)
-        for k, v in iteritems(fields)
+        for k, v in fields.items()
     )
 
     if skip_none:
@@ -238,7 +237,16 @@ class marshal_with(object):
     def __call__(self, f):
         @wraps(f)
         async def wrapper(*args, **kwargs):
-            request = args[0]
+            for a in args:
+                # Find the 'request' in *args
+                try:
+                    _ = a.headers
+                    request = a
+                    break
+                except AttributeError:
+                    continue
+            else:
+                raise RuntimeError("@marshall_with should be used on an endpoint with request in its args")
             resp = f(*args, **kwargs)
             mask = self.mask
 

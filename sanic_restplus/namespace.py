@@ -9,6 +9,8 @@ from .marshalling import marshal, marshal_with
 from .model import Model, OrderedModel, SchemaModel
 from .reqparse import RequestParser
 from .utils import merge
+from ._http import HTTPStatus
+
 
 # Container for each route applied to a Resource using @ns.route decorator
 ResourceRoute = namedtuple("ResourceRoute", "resource urls route_doc kwargs")
@@ -110,7 +112,7 @@ class Namespace(object):
 
     def doc(self, shortcut=None, **kwargs):
         '''A decorator to add some api documentation to the decorated object'''
-        if isinstance(shortcut, six.text_type):
+        if isinstance(shortcut, str):
             kwargs['id'] = shortcut
         show = shortcut if isinstance(shortcut, bool) else True
 
@@ -328,8 +330,8 @@ class Namespace(object):
 
 def unshortcut_params_description(data):
     if 'params' in data:
-        for name, description in six.iteritems(data['params']):
-            if isinstance(description, six.string_types):
+        for name, description in data['params'].items():
+            if isinstance(description, str):
                 data['params'][name] = {'description': description}
 
 

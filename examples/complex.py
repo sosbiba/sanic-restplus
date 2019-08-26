@@ -8,4 +8,4 @@ spf = SanicPluginsFramework(app)
 rest_assoc = spf.register_plugin(restplus)
 rest_assoc.api(api)
 
-app.run(debug=True)
+app.run(debug=True, auto_reload=False)

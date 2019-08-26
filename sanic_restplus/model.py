@@ -4,10 +4,9 @@ import copy
 import re
 import warnings
 
-from methodtools import lru_cache
+
 from collections import OrderedDict, MutableMapping
-from six import iteritems, itervalues
-from werkzeug.utils import cached_property
+from functools import lru_cache
 
 from .mask import Mask
 from .errors import abort
@@ -142,7 +141,7 @@ class RawModel(ModelBase):
         properties = self.wrapper()
         required = set()
         discriminator = None
-        for name, field in iteritems(self):
+        for name, field in self.items():
             field = instance(field)
             properties[name] = field.__schema__
             if field.required:
@@ -158,29 +157,33 @@ class RawModel(ModelBase):
             'type': 'object',
         })
 
-    @property
-    @lru_cache
-    def resolved(self):
+
+    def _resolved(self):
         '''
         Resolve real fields before submitting them to marshal
         '''
+        already_resolved = self._resolved.already_resolved.get(id(self), False)
+        if already_resolved:
+            return already_resolved
         # Duplicate fields
-        resolved = copy.deepcopy(self)
+        res = copy.deepcopy(self)
 
         # Recursively copy parent fields if necessary
         for parent in self.__parents__:
-            resolved.update(parent.resolved)
+            res.update(parent.resolved)
 
         # Handle discriminator
-        candidates = [f for f in itervalues(resolved) if getattr(f, 'discriminator', None)]
+        candidates = [f for f in res.values() if getattr(f, 'discriminator', None)]
         # Ensure the is only one discriminator
         if len(candidates) > 1:
             raise ValueError('There can only be one discriminator by schema')
         # Ensure discriminator always output the model name
         elif len(candidates) == 1:
             candidates[0].default = self.name
-
-        return resolved
+        self._resolved.already_resolved[id(self)] = res
+        return res
+    _resolved.already_resolved = {}
+    resolved = property(_resolved)
 
     def extend(self, name, fields):
         '''
@@ -220,7 +223,7 @@ class RawModel(ModelBase):
 
     def __deepcopy__(self, memo):
         obj = self.__class__(self.name,
-                             [(key, copy.deepcopy(value, memo)) for key, value in iteritems(self)],
+                             [(key, copy.deepcopy(value, memo)) for key, value in self.items()],
                              mask=self.__mask__)
         obj.__parents__ = self.__parents__
         return obj

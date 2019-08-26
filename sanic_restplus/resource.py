@@ -14,6 +14,15 @@ class MethodViewExt(HTTPMethodView):
     methods = None
     method_has_context = None
 
+    @classmethod
+    def as_view_named(cls, endpoint_name, *class_args, **class_kwargs):
+        """Return view function for use with the routing system, that
+        dispatches request to appropriate handler method.
+        """
+
+        view = super(MethodViewExt, cls).as_view(*class_args, **class_kwargs)
+        view.__name__ = endpoint_name
+        return view
 
 class ResourceMeta(type):
     def __new__(mcs, name, bases, d):
@@ -93,6 +102,8 @@ class Resource(MethodViewExt, metaclass=ResourceMeta):
                 args = list(args)
                 args.insert(pos, context)
         resp = meth(request, *args, **kwargs)
+        if inspect.isawaitable(resp):
+            resp = await resp
 
         if isinstance(resp, HTTPResponse):
             return resp
@@ -102,8 +113,6 @@ class Resource(MethodViewExt, metaclass=ResourceMeta):
         mediatype = best_match_accept_mimetype(request, representations, default=None)
         if mediatype in representations:
              # resp might be a coroutine. Wait for it
-             while inspect.isawaitable(resp):
-                 resp = await resp
              data, code, headers = unpack(resp)
              resp = representations[mediatype](data, code, headers)
              resp.headers['Content-Type'] = mediatype
