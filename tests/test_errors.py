@@ -112,6 +112,31 @@ class ErrorsTest(object):
         data = json.loads(response.data.decode('utf8'))
         assert 'message' in data
 
+    def test_errorhandler_for_exception_inheritance(self, app, client):
+        api = restplus.Api(app)
+
+        class CustomException(RuntimeError):
+            pass
+
+        @api.route('/test/', endpoint='test')
+        class TestResource(restplus.Resource):
+            def get(self):
+                raise CustomException('error')
+
+        @api.errorhandler(RuntimeError)
+        def handle_custom_exception(error):
+            return {'message': str(error), 'test': 'value'}, 400
+
+        response = client.get('/test/')
+        assert response.status_code == 400
+        assert response.content_type == 'application/json'
+
+        data = json.loads(response.data.decode('utf8'))
+        assert data == {
+            'message': 'error',
+            'test': 'value',
+        }
+
     def test_errorhandler_for_custom_exception(self, app, client):
         api = restplus.Api(app)
 
@@ -211,6 +236,33 @@ class ErrorsTest(object):
             'test': 'value',
         }
 
+    def test_errorhandler_with_namespace_from_api(self, app, client):
+        api = restplus.Api(app)
+
+        ns = api.namespace("ExceptionHandler", path="/")
+
+        class CustomException(RuntimeError):
+            pass
+
+        @ns.route('/test/', endpoint='test')
+        class TestResource(restplus.Resource):
+            def get(self):
+                raise CustomException('error')
+
+        @ns.errorhandler(CustomException)
+        def handle_custom_exception(error):
+            return {'message': str(error), 'test': 'value'}, 400
+
+        response = client.get('/test/')
+        assert response.status_code == 400
+        assert response.content_type == 'application/json'
+
+        data = json.loads(response.data.decode('utf8'))
+        assert data == {
+            'message': 'error',
+            'test': 'value',
+        }
+
     def test_default_errorhandler(self, app, client):
         api = restplus.Api(app)
 
@@ -239,12 +291,12 @@ class ErrorsTest(object):
 
         app.config['PROPAGATE_EXCEPTIONS'] = True
 
-        response = client.get('/api/test/')
-        assert response.status_code == 500
-        assert response.content_type == 'application/json'
-
-        data = json.loads(response.data.decode('utf8'))
-        assert 'message' in data
+        # From the Flask docs:
+        # PROPAGATE_EXCEPTIONS
+        # Exceptions are re-raised rather than being handled by the app’s error handlers.
+        # If not set, this is implicitly true if TESTING or DEBUG is enabled.
+        with pytest.raises(Exception):
+            client.get('/api/test/')
 
     def test_custom_default_errorhandler(self, app, client):
         api = restplus.Api(app)
@@ -355,9 +407,9 @@ class ErrorsTest(object):
         got_request_exception.connect(record, app)
         try:
             # with self.app.test_request_context("/foo"):
-                api.handle_error(exception)
-                assert len(recorded) == 1
-                assert exception is recorded[0]
+            api.handle_error(exception)
+            assert len(recorded) == 1
+            assert exception is recorded[0]
         finally:
             got_request_exception.disconnect(record, app)
 
@@ -404,6 +456,28 @@ class ErrorsTest(object):
         assert json.loads(response.data.decode()) == {
             'message': NotFound.description
         }
+
+    def test_handle_include_error_message(self, app):
+        api = restplus.Api(app)
+        view = restplus.Resource
+
+        api.add_resource(view, '/foo', endpoint='bor')
+
+        with app.test_request_context("/faaaaa"):
+            response = api.handle_error(NotFound())
+            assert 'message' in json.loads(response.data.decode())
+
+    def test_handle_not_include_error_message(self, app):
+        app.config['ERROR_INCLUDE_MESSAGE'] = False
+
+        api = restplus.Api(app)
+        view = restplus.Resource
+
+        api.add_resource(view, '/foo', endpoint='bor')
+
+        with app.test_request_context("/faaaaa"):
+            response = api.handle_error(NotFound())
+            assert 'message' not in json.loads(response.data.decode())
 
     def test_error_router_falls_back_to_original(self, app, mocker):
         api = restplus.Api(app)

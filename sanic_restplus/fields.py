@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 #
+import re
+import fnmatch
+import inspect
+
 from calendar import timegm
 from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_EVEN
@@ -8,7 +12,7 @@ from email.utils import formatdate
 from six import iteritems, itervalues, text_type, string_types
 from six.moves.urllib.parse import urlparse, urlunparse
 
-from .inputs import date_from_iso8601, datetime_from_iso8601, datetime_from_rfc822
+from .inputs import date_from_iso8601, datetime_from_iso8601, datetime_from_rfc822, boolean
 from .errors import RestError
 from .marshalling import marshal
 from .utils import camel_to_dash, not_none
@@ -16,7 +20,7 @@ from .utils import camel_to_dash, not_none
 
 __all__ = ('Raw', 'String', 'FormattedString', 'Url', 'DateTime', 'Date',
            'Boolean', 'Integer', 'Float', 'Arbitrary', 'Fixed',
-           'Nested', 'List', 'ClassName', 'Polymorph',
+           'Nested', 'List', 'ClassName', 'Polymorph', 'Wildcard',
            'StringMixin', 'MinMaxMixin', 'NumberMixin', 'MarshallingError')
 
 
@@ -132,7 +136,7 @@ class Raw(object):
         '''
         return value
 
-    def output(self, key, obj):
+    def output(self, key, obj, **kwargs):
         '''
         Pulls the value for the given key from the object, applies the
         field's formatting and returns the result. If the key is not found
@@ -207,7 +211,7 @@ class Nested(Raw):
     def nested(self):
         return getattr(self.model, 'resolved', self.model)
 
-    def output(self, key, obj):
+    def output(self, key, obj, ordered=False, **kwargs):
         value = get_value(key if self.attribute is None else self.attribute, obj)
         if value is None:
             if self.allow_null:
@@ -215,7 +219,7 @@ class Nested(Raw):
             elif self.default is not None:
                 return self.default
 
-        return marshal(value, self.nested, skip_none=self.skip_none)
+        return marshal(value, self.nested, skip_none=self.skip_none, ordered=ordered)
 
     def schema(self):
         schema = super(Nested, self).schema()
@@ -224,11 +228,13 @@ class Nested(Raw):
         if self.as_list:
             schema['type'] = 'array'
             schema['items'] = {'$ref': ref}
+        elif any(schema.values()):
+            # There is already some properties in the schema
+            allOf = schema.get('allOf', [])
+            allOf.append({'$ref': ref})
+            schema['allOf'] = allOf
         else:
             schema['$ref'] = ref
-            # if not self.allow_null and not self.readonly:
-            #     schema['required'] = True
-
         return schema
 
     def clone(self, mask=None):
@@ -278,7 +284,7 @@ class List(Raw):
             for idx, val in enumerate(value)
         ]
 
-    def output(self, key, data):
+    def output(self, key, data, ordered=False, **kwargs):
         value = get_value(key if self.attribute is None else self.attribute, data)
         # we cannot really test for external dict behavior
         if is_indexable_but_not_string(value) and not isinstance(value, dict):
@@ -374,7 +380,8 @@ class String(StringMixin, Raw):
     def schema(self):
         enum = self._v('enum')
         schema = super(String, self).schema()
-        schema.update(enum=enum)
+        if enum:
+            schema.update(enum=enum)
         if enum and schema['example'] is None:
             schema['example'] = enum[0]
         return schema
@@ -449,7 +456,7 @@ class Boolean(Raw):
     __schema_type__ = 'boolean'
 
     def format(self, value):
-        return bool(value)
+        return boolean(value)
 
 
 class DateTime(MinMaxMixin, Raw):
@@ -565,7 +572,7 @@ class Url(StringMixin, Raw):
         self.absolute = absolute
         self.scheme = scheme
 
-    def output(self, key, obj):
+    def output(self, key, obj, **kwargs):
         try:
             data = to_marshallable_type(obj)
             endpoint = self.endpoint if self.endpoint is not None else request.endpoint
@@ -602,7 +609,7 @@ class FormattedString(StringMixin, Raw):
         super(FormattedString, self).__init__(**kwargs)
         self.src_str = text_type(src_str)
 
-    def output(self, key, obj):
+    def output(self, key, obj, **kwargs):
         try:
             data = to_marshallable_type(obj)
             return self.src_str.format(**data)
@@ -620,7 +627,7 @@ class ClassName(String):
         super(ClassName, self).__init__(**kwargs)
         self.dash = dash
 
-    def output(self, key, obj):
+    def output(self, key, obj, **kwargs):
         classname = obj.__class__.__name__
         if classname == 'dict':
             return 'object'
@@ -651,7 +658,7 @@ class Polymorph(Nested):
         parent = self.resolve_ancestor(list(itervalues(mapping)))
         super(Polymorph, self).__init__(parent, allow_null=not required, **kwargs)
 
-    def output(self, key, obj):
+    def output(self, key, obj, ordered=False, **kwargs):
         # Copied from upstream NestedField
         value = get_value(key if self.attribute is None else self.attribute, obj)
         if value is None:
@@ -671,7 +678,7 @@ class Polymorph(Nested):
         elif len(candidates) > 1:
             raise ValueError('Unable to determine a candidate for: ' + value.__class__.__name__)
         else:
-            return marshal(value, candidates[0].resolved, mask=self.mask)
+            return marshal(value, candidates[0].resolved, mask=self.mask, ordered=ordered)
 
     def resolve_ancestor(self, models):
         '''
@@ -696,3 +703,102 @@ class Polymorph(Nested):
 
         data['mask'] = mask
         return Polymorph(mapping, **data)
+
+
+class Wildcard(Raw):
+    '''
+    Field for marshalling list of "unkown" fields.
+
+    :param cls_or_instance: The field type the list will contain.
+    '''
+    exclude = set()
+    # cache the flat object
+    _flat = None
+    _obj = None
+    _cache = set()
+    _last = None
+
+    def __init__(self, cls_or_instance, **kwargs):
+        super(Wildcard, self).__init__(**kwargs)
+        error_msg = 'The type of the wildcard elements must be a subclass of fields.Raw'
+        if isinstance(cls_or_instance, type):
+            if not issubclass(cls_or_instance, Raw):
+                raise MarshallingError(error_msg)
+            self.container = cls_or_instance()
+        else:
+            if not isinstance(cls_or_instance, Raw):
+                raise MarshallingError(error_msg)
+            self.container = cls_or_instance
+
+    def _flatten(self, obj):
+        if obj is None:
+            return None
+        if obj == self._obj and self._flat is not None:
+            return self._flat
+        if isinstance(obj, dict):
+            self._flat = [x for x in iteritems(obj)]
+        else:
+
+            def __match_attributes(attribute):
+                attr_name, attr_obj = attribute
+                if inspect.isroutine(attr_obj) or \
+                        (attr_name.startswith('__') and attr_name.endswith('__')):
+                    return False
+                return True
+
+            attributes = inspect.getmembers(obj)
+            self._flat = [x for x in attributes if __match_attributes(x)]
+
+        self._cache = set()
+        self._obj = obj
+        return self._flat
+
+    @property
+    def key(self):
+        return self._last
+
+    def reset(self):
+        self.exclude = set()
+        self._flat = None
+        self._obj = None
+        self._cache = set()
+        self._last = None
+
+    def output(self, key, obj, ordered=False):
+        value = None
+        reg = fnmatch.translate(key)
+
+        if self._flatten(obj):
+            while True:
+                try:
+                    # we are using pop() so that we don't
+                    # loop over the whole object every time dropping the
+                    # complexity to O(n)
+                    (objkey, val) = self._flat.pop()
+                    if objkey not in self._cache and \
+                            objkey not in self.exclude and \
+                            re.match(reg, objkey, re.IGNORECASE):
+                        value = val
+                        self._cache.add(objkey)
+                        self._last = objkey
+                        break
+                except IndexError:
+                    break
+
+        if value is None:
+            if self.default is not None:
+                return self.container.format(self.default)
+            return None
+
+        return self.container.format(value)
+
+    def schema(self):
+        schema = super(Wildcard, self).schema()
+        schema['type'] = 'object'
+        schema['additionalProperties'] = self.container.__schema__
+        return schema
+
+    def clone(self):
+        kwargs = self.__dict__.copy()
+        model = kwargs.pop('container')
+        return self.__class__(model, **kwargs)

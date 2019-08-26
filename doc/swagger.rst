@@ -52,23 +52,26 @@ The above configuration will produce these Swagger definitions:
 
 .. code-block:: json
 
-    "Parent": {
-        "properties": {
-            "name": {"type": "string"},
-            "class": {"type": "string"}
+    {
+        "Parent": {
+            "properties": {
+                "name": {"type": "string"},
+                "class": {"type": "string"}
+            },
+            "discriminator": "class",
+            "required": ["class"]
         },
-        "discriminator": "class",
-        "required": ["class"]
-    },
-    "Child": {
-        "allOf": [{
-                "$ref": "#/definitions/Parent"
-            }, {
-                "properties": {
-                    "extra": {"type": "string"}
+        "Child": {
+            "allOf": [
+                {
+                    "$ref": "#/definitions/Parent"
+                }, {
+                    "properties": {
+                        "extra": {"type": "string"}
+                    }
                 }
-            }
-        ]
+            ]
+        }
     }
 
 
@@ -347,10 +350,67 @@ For example, these two declarations are equivalent:
 
 .. code-block:: python
 
-    @api.route('/my-resource/<id>', endpoint='my-resource', doc={params:{'id': 'An ID'}})
+    @api.route('/my-resource/<id>', endpoint='my-resource', doc={'params':{'id': 'An ID'}})
     class MyResource(Resource):
         def get(self, id):
             return {}
+
+Multiple Routes per Resource
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Multiple ``Api.route()`` decorators can be used to add multiple routes for a ``Resource``.
+The ``doc`` parameter provides documentation **per route**.
+
+For example, here the ``description`` is applied only to the ``/also-my-resource/<id>`` route:
+
+.. code-block:: python
+
+    @api.route("/my-resource/<id>")
+    @api.route(
+        "/also-my-resource/<id>",
+        doc={"description": "Alias for /my-resource/<id>"},
+    )
+    class MyResource(Resource):
+        def get(self, id):
+            return {}
+
+Here, the ``/also-my-resource/<id>`` route is marked as deprecated:
+
+.. code-block:: python
+
+    @api.route("/my-resource/<id>")
+    @api.route(
+        "/also-my-resource/<id>",
+        doc={
+            "description": "Alias for /my-resource/<id>, this route is being phased out in V2",
+            "deprecated": True,
+        },
+    )
+    class MyResource(Resource):
+        def get(self, id):
+            return {}
+
+Documentation applied to the ``Resource`` using ``Api.doc()`` is `shared` amongst all
+routes unless explicitly overridden:
+
+.. code-block:: python
+
+    @api.route("/my-resource/<id>")
+    @api.route(
+    "/also-my-resource/<id>",
+    doc={"description": "Alias for /my-resource/<id>"},
+    )
+    @api.doc(params={"id": "An ID", description="My resource"})
+    class MyResource(Resource):
+    def get(self, id):
+        return {}
+
+Here, the ``id`` documentation from the ``@api.doc()`` decorator is present in both routes, 
+``/my-resource/<id>`` inherits the ``My resource`` description from the ``@api.doc()`` 
+decorator and  ``/also-my-resource/<id>`` overrides the description with ``Alias for /my-resource/<id>``.
+
+Routes with a ``doc`` parameter are given a `unique` Swagger ``operationId``. Routes without
+``doc`` parameter have the same Swagger ``operationId`` as they are deemed the same operation.
 
 
 Documenting the fields
@@ -547,7 +607,7 @@ You can document response headers with the ``@api.header()`` decorator shortcut.
         def get(self):
             pass
 
-If you need to specify an header that appear only on a gvien response,
+If you need to specify an header that appear only on a given response,
 just use the `@api.response` `headers` parameter.
 
 .. code-block:: python
@@ -687,11 +747,18 @@ You can hide some resources or methods from documentation using any of the follo
         def delete(self):
             return {}
 
+.. note::
+
+   Namespace tags without attached resources will be hidden automatically from the documentation.
+
 
 Documenting authorizations
 --------------------------
 
-You can use the ``authorizations`` keyword argument to document authorization information:
+You can use the ``authorizations`` keyword argument to document authorization information.
+See `Swagger Authentication documentation <https://swagger.io/docs/specification/2-0/authentication/>`_
+for configuration details.
+    - ``authorizations`` is a Python dictionary representation of the Swagger ``securityDefinitions`` configuration.
 
 .. code-block:: python
 
@@ -746,6 +813,7 @@ You can have multiple security schemes:
             'type': 'oauth2',
             'flow': 'accessCode',
             'tokenUrl': 'https://somewhere.com/token',
+            'authorizationUrl': 'https://somewhere.com/auth',
             'scopes': {
                 'read': 'Grant read-only access',
                 'write': 'Grant read-write access',
@@ -885,6 +953,41 @@ You can specify a custom validator URL by setting ``config.SWAGGER_VALIDATOR_URL
     api = Api(app)
 
 
+You can enable [OAuth2 Implicit Flow](https://oauth.net/2/grant-types/implicit/) for retrieving an
+authorization token for testing api endpoints interactively within Swagger UI.
+The ``config.SWAGGER_UI_OAUTH_CLIENT_ID`` and ``authorizationUrl`` and ``scopes``
+will be specific to your OAuth2 IDP configuration.
+The realm string is added as a query parameter to authorizationUrl and tokenUrl.
+These values are all public knowledge. No *client secret* is specified here.
+.. Using PKCE instead of Implicit Flow depends on https://github.com/swagger-api/swagger-ui/issues/5348
+
+.. code-block:: python
+
+    from flask import Flask
+    app = Flask(__name__)
+
+    app.config.SWAGGER_UI_OAUTH_CLIENT_ID = 'MyClientId'
+    app.config.SWAGGER_UI_OAUTH_REALM = '-'
+    app.config.SWAGGER_UI_OAUTH_APP_NAME = 'Demo'
+
+    api = Api(
+        app,
+        title=app.config.SWAGGER_UI_OAUTH_APP_NAME,
+        security={'OAuth2': ['read', 'write']},
+        authorizations={
+            'OAuth2': {
+                'type': 'oauth2',
+                'flow': 'implicit',
+                'authorizationUrl': 'https://idp.example.com/authorize?audience=https://app.example.com',
+                'clientId': app.config.SWAGGER_UI_OAUTH_CLIENT_ID,
+                'scopes': {
+                    'openid': 'Get ID token',
+                    'profile': 'Get identity',
+                }
+            }
+        }
+    )
+
 You can also specify the initial expansion state with the ``config.SWAGGER_UI_DOC_EXPANSION``
 setting (``'none'``, ``'list'`` or ``'full'``):
 
@@ -918,7 +1021,7 @@ you can register a custom view function with the :meth:`~Api.documentation` deco
 .. code-block:: python
 
     from flask import Flask
-    from flask_restplus import API, apidoc
+    from flask_restplus import Api, apidoc
 
     app = Flask(__name__)
     api = Api(app)
@@ -927,6 +1030,27 @@ you can register a custom view function with the :meth:`~Api.documentation` deco
     def custom_ui():
         return apidoc.ui_for(api)
 
+Configuring "Try it Out"
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+By default, all paths and methods have a "Try it Out" button for performing API requests in the browser.
+These can be disable **per method** with the ``SWAGGER_SUPPORTED_SUBMIT_METHODS`` configuration option, 
+supporting the same values as the ``supportedSubmitMethods`` `Swagger UI parameter <https://github.com/swagger-api/swagger-ui/blob/master/docs/usage/configuration.md#network/>`_.
+
+.. code-block:: python
+
+    from flask import Flask
+    from flask_restplus import Api
+
+    app = Flask(__name__)
+
+    # disable Try it Out for all methods
+    app.config.SWAGGER_SUPPORTED_SUBMIT_METHODS = []
+
+    # enable Try it Out for specific methods
+    app.config.SWAGGER_SUPPORTED_SUBMIT_METHODS = ["get", "post"]
+
+    api = Api(app)
 
 Disabling the documentation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
 #
 import inspect
-import six
 import warnings
+from collections import namedtuple
 from sanic.constants import HTTP_METHODS
 from .errors import abort
 from .marshalling import marshal, marshal_with
-from .model import Model, SchemaModel
+from .model import Model, OrderedModel, SchemaModel
 from .reqparse import RequestParser
 from .utils import merge
-from ._http import HTTPStatus
+
+# Container for each route applied to a Resource using @ns.route decorator
+ResourceRoute = namedtuple("ResourceRoute", "resource urls route_doc kwargs")
 
 
 class Namespace(object):
@@ -19,13 +21,15 @@ class Namespace(object):
     Namespace is to API what :class:`flask:flask.Blueprint` is for :class:`flask:flask.Flask`.
 
     :param str name: The namespace name
-    :param str description: An optionale short description
+    :param str description: An optional short description
     :param str path: An optional prefix path. If not provided, prefix is ``/+name``
     :param list decorators: A list of decorators to apply to each resources
     :param bool validate: Whether or not to perform validation on this namespace
+    :param bool ordered: Whether or not to preserve order on models and marshalling
     :param Api api: an optional API to attache to the namespace
     '''
-    def __init__(self, name, description=None, path=None, decorators=None, validate=None, **kwargs):
+    def __init__(self, name, description=None, path=None, decorators=None, validate=None,
+            authorizations=None, ordered=False, **kwargs):
         self.name = name
         self.description = description
         self._path = path
@@ -35,10 +39,11 @@ class Namespace(object):
         self.models = {}
         self.urls = {}
         self.decorators = decorators if decorators else []
-        self.resources = []
+        self.resources = []  # List[ResourceRoute]
         self.error_handlers = {}
         self.default_error_handler = None
-        self.mask_header = kwargs.pop('mask_header', None)
+        self.authorizations = authorizations
+        self.ordered = ordered
         self.apis = []
         if 'api' in kwargs:
             self.apis.append(kwargs['api'])
@@ -69,7 +74,8 @@ class Namespace(object):
             namespace.add_resource(Foo, '/foo', endpoint="foo")
             namespace.add_resource(FooSpecial, '/special/foo', endpoint="foo")
         '''
-        self.resources.append((resource, urls, kwargs))
+        route_doc = kwargs.pop('route_doc', {})
+        self.resources.append(ResourceRoute(resource, urls, route_doc, kwargs))
         for api in self.apis:
             ns_urls = api.ns_urls(self, urls)
             api.register_resource(self, resource, *ns_urls, **kwargs)
@@ -81,15 +87,15 @@ class Namespace(object):
         def wrapper(cls):
             doc = kwargs.pop('doc', None)
             if doc is not None:
-                self._handle_api_doc(cls, doc)
+                # build api doc intended only for this route
+                kwargs['route_doc'] = self._build_doc(cls, doc)
             self.add_resource(cls, *urls, **kwargs)
             return cls
         return wrapper
 
-    def _handle_api_doc(self, cls, doc):
+    def _build_doc(self, cls, doc):
         if doc is False:
-            cls.__apidoc__ = False
-            return
+            return False
         unshortcut_params_description(doc)
         handle_deprecations(doc)
         for http_method in {str(m).lower() for m in HTTP_METHODS}:
@@ -100,7 +106,7 @@ class Namespace(object):
                 handle_deprecations(doc[http_method])
                 if 'expect' in doc[http_method] and not isinstance(doc[http_method]['expect'], (list, tuple)):
                     doc[http_method]['expect'] = [doc[http_method]['expect']]
-        cls.__apidoc__ = merge(getattr(cls, '__apidoc__', {}), doc)
+        return merge(getattr(cls, '__apidoc__', {}), doc)
 
     def doc(self, shortcut=None, **kwargs):
         '''A decorator to add some api documentation to the decorated object'''
@@ -109,7 +115,10 @@ class Namespace(object):
         show = shortcut if isinstance(shortcut, bool) else True
 
         def wrapper(documented):
-            self._handle_api_doc(documented, kwargs if show else False)
+            documented.__apidoc__ = self._build_doc(
+                documented,
+                kwargs if show else False
+            )
             return documented
         return wrapper
 
@@ -137,7 +146,8 @@ class Namespace(object):
 
         .. seealso:: :class:`Model`
         '''
-        model = Model(name, model, mask=mask)
+        cls = OrderedModel if self.ordered else Model
+        model = cls(name, model, mask=mask)
         model.__apidoc__.update(kwargs)
         return self.add_model(name, model)
 
@@ -195,7 +205,7 @@ class Namespace(object):
         '''
         expect = []
         params = {
-            'validate': kwargs.get('validate', None) or self._validate,
+            'validate': kwargs.get('validate', self._validate),
             'expect': expect
         }
         for param in inputs:
@@ -225,7 +235,7 @@ class Namespace(object):
             },
             '__mask__': kwargs.get('mask', True),  # Mask values can't be determined outside app context
         }
-        real_marshal_with = marshal_with(fields, mask_header=self.mask_header, **kwargs)
+        real_marshal_with = marshal_with(fields, ordered=self.ordered, **kwargs)
 
         def wrapper(func):
             nonlocal doc
@@ -310,6 +320,10 @@ class Namespace(object):
         for arg in args:
             kwargs.update(arg)
         return self.doc(vendor=kwargs)
+
+    def payload(self, request):
+        '''Store the input payload in the current request context'''
+        return request.json
 
 
 def unshortcut_params_description(data):
