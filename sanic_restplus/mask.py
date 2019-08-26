@@ -2,8 +2,6 @@
 #
 import logging
 import re
-import six
-
 from collections import OrderedDict
 from inspect import isclass
 
@@ -33,7 +31,7 @@ class Mask(OrderedDict):
     '''
     def __init__(self, mask=None, skip=False, **kwargs):
         self.skip = skip
-        if isinstance(mask, six.string_types):
+        if isinstance(mask, str):
             super(Mask, self).__init__()
             self.parse(mask)
         elif isinstance(mask, (dict, OrderedDict)):

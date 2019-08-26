@@ -152,13 +152,26 @@ class SwaggerTest(object):
 
         data = client.get_specs('')
         assert 'host' not in data
+        assert data['basePath'] == '/'
 
+    @pytest.mark.options(server_name='api.restplus.org')
     def test_specs_endpoint_host(self, app, client):
-        app.config['SERVER_NAME'] = 'api.restplus.org'
+        # app.config['SERVER_NAME'] = 'api.restplus.org'
         restplus.Api(app)
 
         data = client.get_specs('')
         assert data['host'] == 'api.restplus.org'
+        assert data['basePath'] == '/'
+
+    @pytest.mark.options(server_name='api.restplus.org')
+    def test_specs_endpoint_host_with_url_prefix(self, app, client):
+        blueprint = Blueprint('api', __name__, url_prefix='/api/1')
+        restplus.Api(blueprint)
+        app.register_blueprint(blueprint)
+
+        data = client.get_specs('/api/1')
+        assert data['host'] == 'api.restplus.org'
+        assert data['basePath'] == '/api/1'
 
     @pytest.mark.options(server_name='restplus.org')
     def test_specs_endpoint_host_and_subdomain(self, app, client):
@@ -168,6 +181,7 @@ class SwaggerTest(object):
 
         data = client.get_specs(base_url='http://api.restplus.org')
         assert data['host'] == 'api.restplus.org'
+        assert data['basePath'] == '/'
 
     def test_specs_endpoint_tags_short(self, app, client):
         restplus.Api(app, tags=['tag-1', 'tag-2', 'tag-3'])
@@ -176,8 +190,7 @@ class SwaggerTest(object):
         assert data['tags'] == [
             {'name': 'tag-1'},
             {'name': 'tag-2'},
-            {'name': 'tag-3'},
-            {'name': 'default', 'description': 'Default namespace'},
+            {'name': 'tag-3'}
         ]
 
     def test_specs_endpoint_tags_tuple(self, app, client):
@@ -191,8 +204,7 @@ class SwaggerTest(object):
         assert data['tags'] == [
             {'name': 'tag-1', 'description': 'Tag 1'},
             {'name': 'tag-2', 'description': 'Tag 2'},
-            {'name': 'tag-3', 'description': 'Tag 3'},
-            {'name': 'default', 'description': 'Default namespace'},
+            {'name': 'tag-3', 'description': 'Tag 3'}
         ]
 
     def test_specs_endpoint_tags_dict(self, app, client):
@@ -206,8 +218,7 @@ class SwaggerTest(object):
         assert data['tags'] == [
             {'name': 'tag-1', 'description': 'Tag 1'},
             {'name': 'tag-2', 'description': 'Tag 2'},
-            {'name': 'tag-3', 'description': 'Tag 3'},
-            {'name': 'default', 'description': 'Default namespace'},
+            {'name': 'tag-3', 'description': 'Tag 3'}
         ]
 
     @pytest.mark.api(tags=['ns', 'tag'])
@@ -215,18 +226,100 @@ class SwaggerTest(object):
         api.namespace('ns', 'Description')
 
         data = client.get_specs('')
-        assert data['tags'] == [
-            {'name': 'ns', 'description': 'Description'},
-            {'name': 'tag'},
-            {'name': 'default', 'description': 'Default namespace'},
-        ]
+        assert data['tags'] == [{'name': 'ns'}, {'name': 'tag'}]
 
     def test_specs_endpoint_invalid_tags(self, app, client):
-        restplus.Api(app, tags=[
+        api = restplus.Api(app, tags=[
             {'description': 'Tag 1'}
         ])
 
         client.get_specs('', status=500)
+
+        assert list(api.__schema__.keys()) == ['error']
+
+    def test_specs_endpoint_default_ns_with_resources(self, app, client):
+        restplus.Api(app)
+        data = client.get_specs('')
+        assert data['tags'] == []
+
+    def test_specs_endpoint_default_ns_without_resources(self, app, client):
+        api = restplus.Api(app)
+
+        @api.route('/test', endpoint='test')
+        class TestResource(restplus.Resource):
+            def get(self):
+                return {}
+
+        data = client.get_specs('')
+        assert data['tags'] == [
+            {'name': 'default', 'description': 'Default namespace'}
+        ]
+
+    def test_specs_endpoint_default_ns_with_specified_ns(self, app, client):
+        api = restplus.Api(app)
+        ns = api.namespace('ns', 'Test namespace')
+
+        @ns.route('/test2', endpoint='test2')
+        @api.route('/test', endpoint='test')
+        class TestResource(restplus.Resource):
+            def get(self):
+                return {}
+
+        data = client.get_specs('')
+        assert data['tags'] == [
+            {'name': 'default', 'description': 'Default namespace'},
+            {'name': 'ns', 'description': 'Test namespace'}
+        ]
+
+    def test_specs_endpoint_specified_ns_without_default_ns(self, app, client):
+        api = restplus.Api(app)
+        ns = api.namespace('ns', 'Test namespace')
+
+        @ns.route('/', endpoint='test2')
+        class TestResource(restplus.Resource):
+            def get(self):
+                return {}
+
+        data = client.get_specs('')
+        assert data['tags'] == [
+            {'name': 'ns', 'description': 'Test namespace'}
+        ]
+
+    def test_specs_endpoint_namespace_without_description(self, app, client):
+        api = restplus.Api(app)
+        ns = api.namespace('ns')
+
+        @ns.route('/test', endpoint='test')
+        class TestResource(restplus.Resource):
+            def get(self):
+                return {}
+
+        data = client.get_specs('')
+        assert data['tags'] == [{'name': 'ns'}]
+
+    def test_specs_endpoint_namespace_all_resources_hidden(self, app, client):
+        api = restplus.Api(app)
+        ns = api.namespace('ns')
+
+        @ns.route('/test', endpoint='test', doc=False)
+        class TestResource(restplus.Resource):
+            def get(self):
+                return {}
+
+        @ns.route('/test2', endpoint='test2')
+        @ns.hide
+        class TestResource2(restplus.Resource):
+            def get(self):
+                return {}
+
+        @ns.route('/test3', endpoint='test3')
+        @ns.doc(False)
+        class TestResource3(restplus.Resource):
+            def get(self):
+                return {}
+
+        data = client.get_specs('')
+        assert data['tags'] == []
 
     def test_specs_authorizations(self, app, client):
         authorizations = {
@@ -352,7 +445,7 @@ class SwaggerTest(object):
         }
         assert 'parameters' not in op
 
-        assert len(data['tags']) == 2
+        assert len(data['tags']) == 1
         tag = data['tags'][-1]
         assert tag['name'] == 'ns'
         assert tag['description'] == 'Test namespace'
@@ -384,7 +477,7 @@ class SwaggerTest(object):
             }
         }
 
-        assert len(data['tags']) == 2
+        assert len(data['tags']) == 1
         tag = data['tags'][-1]
         assert tag['name'] == 'ns'
         assert tag['description'] == 'Test namespace'
@@ -669,6 +762,33 @@ class SwaggerTest(object):
 
         assert op['consumes'] == ['multipart/form-data']
 
+    def test_parser_parameter_in_files_on_class(self, api, client):
+        parser = api.parser()
+        parser.add_argument('in_files', type=FileStorage, location='files')
+
+        @api.route('/with-parser/', endpoint='with-parser')
+        @api.expect(parser)
+        class WithParserResource(restplus.Resource):
+            def get(self):
+                return {}
+
+        data = client.get_specs()
+        assert '/with-parser/' in data['paths']
+
+        path = data['paths']['/with-parser/']
+        assert len(path['parameters']) == 1
+
+        parameter = path['parameters'][0]
+        assert parameter['name'] == 'in_files'
+        assert parameter['type'] == 'file'
+        assert parameter['in'] == 'formData'
+
+        assert 'consumes' not in path
+
+        op = path['get']
+        assert 'consumes' in op
+        assert op['consumes'] == ['multipart/form-data']
+
     def test_explicit_parameters(self, api, client):
         @api.route('/name/<int:age>/', endpoint='by-name')
         class ByNameResource(restplus.Resource):
@@ -774,11 +894,14 @@ class SwaggerTest(object):
             def get(self, age):
                 return {}
 
+            def post(self, age):
+                pass
+
         data = client.get_specs()
         assert '/name/{age}/' in data['paths']
 
         path = data['paths']['/name/{age}/']
-        assert len(path['parameters']) == 2
+        assert len(path['parameters']) == 1
 
         by_name = dict((p['name'], p) for p in path['parameters'])
 
@@ -789,20 +912,26 @@ class SwaggerTest(object):
         assert parameter['required'] is True
         assert parameter['description'] == 'An age'
 
-        parameter = by_name['q']
-        assert parameter['name'] == 'q'
-        assert parameter['type'] == 'string'
-        assert parameter['in'] == 'query'
-        assert parameter['description'] == 'Overriden description'
+        # Don't duplicate parameters
+        assert 'q' not in by_name
 
-        op = data['paths']['/name/{age}/']['get']
-        assert len(op['parameters']) == 1
+        get = data['paths']['/name/{age}/']['get']
+        assert len(get['parameters']) == 1
 
-        parameter = op['parameters'][0]
+        parameter = get['parameters'][0]
         assert parameter['name'] == 'q'
         assert parameter['type'] == 'string'
         assert parameter['in'] == 'query'
         assert parameter['description'] == 'A query string'
+
+        post = data['paths']['/name/{age}/']['post']
+        assert len(post['parameters']) == 1
+
+        parameter = post['parameters'][0]
+        assert parameter['name'] == 'q'
+        assert parameter['type'] == 'string'
+        assert parameter['in'] == 'query'
+        assert parameter['description'] == 'Overriden description'
 
     def test_explicit_parameters_override_by_method(self, api, client):
         @api.route('/name/<int:age>/', endpoint='by-name', doc={
@@ -833,19 +962,12 @@ class SwaggerTest(object):
         assert '/name/{age}/' in data['paths']
 
         path = data['paths']['/name/{age}/']
-        assert len(path['parameters']) == 1
+        assert 'parameters' not in path
 
-        parameter = path['parameters'][0]
-        assert parameter['name'] == 'age'
-        assert parameter['type'] == 'integer'
-        assert parameter['in'] == 'path'
-        assert parameter['required'] is True
-        assert parameter['description'] == 'An age'
+        get = path['get']
+        assert len(get['parameters']) == 2
 
-        op = path['get']
-        assert len(op['parameters']) == 2
-
-        by_name = dict((p['name'], p) for p in op['parameters'])
+        by_name = dict((p['name'], p) for p in get['parameters'])
 
         parameter = by_name['age']
         assert parameter['name'] == 'age'
@@ -860,7 +982,58 @@ class SwaggerTest(object):
         assert parameter['in'] == 'query'
         assert parameter['description'] == 'A query string'
 
-        assert 'parameters' not in path['post']
+        post = path['post']
+        assert len(post['parameters']) == 1
+
+        by_name = dict((p['name'], p) for p in post['parameters'])
+
+        parameter = by_name['age']
+        assert parameter['name'] == 'age'
+        assert parameter['type'] == 'integer'
+        assert parameter['in'] == 'path'
+        assert parameter['required'] is True
+        assert parameter['description'] == 'An age'
+
+    def test_parameters_cascading_with_apidoc_false(self, api, client):
+        @api.route('/name/<int:age>/', endpoint='by-name', doc={
+            'get': {
+                'params': {
+                    'q': {
+                        'type': 'string',
+                        'in': 'query',
+                        'description': 'A query string',
+                    }
+                }
+            },
+            'params': {
+                'age': {
+                    'description': 'An age'
+                }
+            }
+        })
+        class ByNameResource(restplus.Resource):
+            @api.doc(params={'age': {'description': 'Overriden'}})
+            def get(self, age):
+                return {}
+
+            @api.doc(False)
+            def post(self, age):
+                return {}
+
+        data = client.get_specs()
+        assert '/name/{age}/' in data['paths']
+
+        path = data['paths']['/name/{age}/']
+        assert 'parameters' not in path
+
+        get = path['get']
+        assert len(get['parameters']) == 2
+
+        by_name = dict((p['name'], p) for p in get['parameters'])
+        assert 'age' in by_name
+        assert 'q' in by_name
+
+        assert 'post' not in path
 
     def test_explicit_parameters_desription_shortcut(self, api, client):
         @api.route('/name/<int:age>/', endpoint='by-name', doc={
@@ -885,18 +1058,12 @@ class SwaggerTest(object):
         assert '/name/{age}/' in data['paths']
 
         path = data['paths']['/name/{age}/']
-        assert len(path['parameters']) == 1
-        parameter = path['parameters'][0]
-        assert parameter['name'] == 'age'
-        assert parameter['type'] == 'integer'
-        assert parameter['in'] == 'path'
-        assert parameter['required'] is True
-        assert parameter['description'] == 'An age'
+        assert 'parameters' not in path
 
-        op = path['get']
-        assert len(op['parameters']) == 2
+        get = path['get']
+        assert len(get['parameters']) == 2
 
-        by_name = dict((p['name'], p) for p in op['parameters'])
+        by_name = dict((p['name'], p) for p in get['parameters'])
 
         parameter = by_name['age']
         assert parameter['name'] == 'age'
@@ -911,7 +1078,19 @@ class SwaggerTest(object):
         assert parameter['in'] == 'query'
         assert parameter['description'] == 'A query string'
 
-        assert 'parameters' not in path['post']
+        post = path['post']
+        assert len(post['parameters']) == 1
+
+        by_name = dict((p['name'], p) for p in post['parameters'])
+
+        parameter = by_name['age']
+        assert parameter['name'] == 'age'
+        assert parameter['type'] == 'integer'
+        assert parameter['in'] == 'path'
+        assert parameter['required'] is True
+        assert parameter['description'] == 'An age'
+
+        assert 'q' not in by_name
 
     def test_explicit_parameters_native_types(self, api, client):
         @api.route('/types/', endpoint='native')
@@ -1378,9 +1557,6 @@ class SwaggerTest(object):
         })
 
         fields = api.model('Person', {
-            'name': restplus.fields.String,
-            'age': restplus.fields.Integer,
-            'birthdate': restplus.fields.DateTime,
             'address': restplus.fields.Nested(address_fields)
         })
 
@@ -1398,8 +1574,16 @@ class SwaggerTest(object):
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
+        assert data['definitions']['Person'] == {
+            'properties': {
+                'address': {
+                    '$ref': '#/definitions/Address'
+                },
+            },
+            'type': 'object'
+        }
 
-        assert 'Address' in data['definitions'].keys()
+        assert 'Address' in data['definitions']
         assert data['definitions']['Address'] == {
             'properties': {
                 'road': {
@@ -1412,6 +1596,50 @@ class SwaggerTest(object):
         path = data['paths']['/model-as-dict/']
         assert path['get']['responses']['200']['schema']['$ref'] == '#/definitions/Person'
         assert path['post']['responses']['200']['schema']['$ref'] == '#/definitions/Person'
+
+    def test_model_as_nested_dict_with_details(self, api, client):
+        address_fields = api.model('Address', {
+            'road': restplus.fields.String,
+        })
+
+        fields = api.model('Person', {
+            'address': restplus.fields.Nested(address_fields, description='description', readonly=True)
+        })
+
+        @api.route('/model-as-dict/')
+        class ModelAsDict(restplus.Resource):
+            @api.doc(model=fields)
+            def get(self):
+                return {}
+
+            @api.doc(model='Person')
+            def post(self):
+                return {}
+
+        data = client.get_specs()
+
+        assert 'definitions' in data
+        assert 'Person' in data['definitions']
+        assert data['definitions']['Person'] == {
+            'properties': {
+                'address': {
+                    'description': 'description',
+                    'readOnly': True,
+                    'allOf': [{'$ref': '#/definitions/Address'}]
+                },
+            },
+            'type': 'object'
+        }
+
+        assert 'Address' in data['definitions']
+        assert data['definitions']['Address'] == {
+            'properties': {
+                'road': {
+                    'type': 'string'
+                },
+            },
+            'type': 'object'
+        }
 
     def test_model_as_flat_dict_with_marchal_decorator(self, api, client):
         fields = api.model('Person', {
@@ -2820,6 +3048,181 @@ class SwaggerTest(object):
         path = data['paths']['/bar']
         assert 'get' in path
         assert 'post' not in path
+
+    def test_multiple_routes_inherit_doc(self, api, client):
+        @api.route('/foo/bar')
+        @api.route('/bar')
+        @api.doc(description='an endpoint')
+        class TestResource(restplus.Resource):
+            def get(self):
+                pass
+
+        data = client.get_specs()
+
+        path = data['paths']['/foo/bar']
+        assert path['get']['description'] == 'an endpoint'
+
+        path = data['paths']['/bar']
+        assert path['get']['description'] == 'an endpoint'
+
+    def test_multiple_routes_individual_doc(self, api, client):
+        @api.route('/foo/bar', doc={'description': 'the same endpoint'})
+        @api.route('/bar', doc={'description': 'an endpoint'})
+        class TestResource(restplus.Resource):
+            def get(self):
+                pass
+
+        data = client.get_specs()
+
+        path = data['paths']['/foo/bar']
+        assert path['get']['description'] == 'the same endpoint'
+
+        path = data['paths']['/bar']
+        assert path['get']['description'] == 'an endpoint'
+
+    def test_multiple_routes_override_doc(self, api, client):
+        @api.route('/foo/bar', doc={'description': 'the same endpoint'})
+        @api.route('/bar')
+        @api.doc(description='an endpoint')
+        class TestResource(restplus.Resource):
+            def get(self):
+                pass
+
+        data = client.get_specs()
+
+        path = data['paths']['/foo/bar']
+        assert path['get']['description'] == 'the same endpoint'
+
+        path = data['paths']['/bar']
+        assert path['get']['description'] == 'an endpoint'
+
+    def test_multiple_routes_no_doc_same_operationIds(self, api, client):
+        @api.route('/foo/bar')
+        @api.route('/bar')
+        class TestResource(restplus.Resource):
+            def get(self):
+                pass
+
+        data = client.get_specs()
+
+        expected_operation_id = 'get_test_resource'
+
+        path = data['paths']['/foo/bar']
+        assert path['get']['operationId'] == expected_operation_id
+
+        path = data['paths']['/bar']
+        assert path['get']['operationId'] == expected_operation_id
+
+    def test_multiple_routes_with_doc_unique_operationIds(self, api, client):
+        @api.route(
+            "/foo/bar",
+            doc={"description": "I should be treated separately"},
+        )
+        @api.route("/bar")
+        class TestResource(restplus.Resource):
+            def get(self):
+                pass
+
+        data = client.get_specs()
+
+        path = data['paths']['/foo/bar']
+        assert path['get']['operationId'] == 'get_test_resource_/foo/bar'
+
+        path = data['paths']['/bar']
+        assert path['get']['operationId'] == 'get_test_resource'
+
+    def test_mutltiple_routes_merge_doc(self, api, client):
+        @api.route('/foo/bar', doc={'description': 'the same endpoint'})
+        @api.route('/bar', doc={'description': False})
+        @api.doc(security=[{'oauth2': ['read', 'write']}])
+        class TestResource(restplus.Resource):
+            def get(self):
+                pass
+
+        data = client.get_specs()
+
+        path = data['paths']['/foo/bar']
+        assert path['get']['description'] == 'the same endpoint'
+        assert path['get']['security'] == [{'oauth2': ['read', 'write']}]
+
+        path = data['paths']['/bar']
+        assert 'description' not in path['get']
+        assert path['get']['security'] == [{'oauth2': ['read', 'write']}]
+
+    def test_multiple_routes_deprecation(self, api, client):
+        @api.route('/foo/bar', doc={'deprecated': True})
+        @api.route('/bar')
+        class TestResource(restplus.Resource):
+            def get(self):
+                pass
+
+        data = client.get_specs()
+
+        path = data['paths']['/foo/bar']
+        assert path['get']['deprecated'] is True
+
+        path = data['paths']['/bar']
+        assert 'deprecated' not in path['get']
+
+    @pytest.mark.parametrize('path_name', ['/name/{age}/', '/first-name/{age}/'])
+    def test_multiple_routes_explicit_parameters_override(self, path_name, api, client):
+        @api.route("/name/<int:age>/", endpoint="by-name")
+        @api.route("/first-name/<int:age>/")
+        @api.doc(
+            params={
+                "q": {
+                    "type": "string",
+                    "in": "query",
+                    "description": "Overriden description",
+                },
+                "age": {"description": "An age"},
+            }
+        )
+        class ByNameResource(restplus.Resource):
+            @api.doc(
+                params={"q": {"description": "A query string"}}
+            )
+            def get(self, age):
+                return {}
+
+            def post(self, age):
+                pass
+
+        data = client.get_specs()
+        assert path_name in data['paths']
+
+        path = data['paths'][path_name]
+        assert len(path['parameters']) == 1
+
+        by_name = dict((p['name'], p) for p in path['parameters'])
+
+        parameter = by_name['age']
+        assert parameter['name'] == 'age'
+        assert parameter['type'] == 'integer'
+        assert parameter['in'] == 'path'
+        assert parameter['required'] is True
+        assert parameter['description'] == 'An age'
+
+        # Don't duplicate parameters
+        assert 'q' not in by_name
+
+        get = path['get']
+        assert len(get['parameters']) == 1
+
+        parameter = get['parameters'][0]
+        assert parameter['name'] == 'q'
+        assert parameter['type'] == 'string'
+        assert parameter['in'] == 'query'
+        assert parameter['description'] == 'A query string'
+
+        post = path['post']
+        assert len(post['parameters']) == 1
+
+        parameter = post['parameters'][0]
+        assert parameter['name'] == 'q'
+        assert parameter['type'] == 'string'
+        assert parameter['in'] == 'query'
+        assert parameter['description'] == 'Overriden description'
 
 
 class SwaggerDeprecatedTest(object):

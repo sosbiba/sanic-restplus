@@ -3,7 +3,7 @@
 from time import time
 from uuid import uuid5, NAMESPACE_URL
 
-from six.moves.urllib.parse import urlencode
+from urllib.parse import urlencode
 
 
 def clean(data):

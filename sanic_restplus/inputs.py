@@ -12,7 +12,7 @@ You can define you own parser using the same pattern:
             raise ValueError('This is not my type')
         return parse(value)
 
-    # Swagger documntation
+    # Swagger documentation
     my_type.__schema__ = {'type': 'string', 'format': 'my-custom-format'}
 
 The last line allows you to document properly the type in the Swagger documentation.
@@ -22,7 +22,7 @@ import socket
 
 from datetime import datetime, time, timedelta
 from email.utils import parsedate_tz, mktime_tz
-from six.moves.urllib.parse import urlparse
+from urllib.parse import urlparse
 
 import aniso8601
 import pytz
@@ -397,6 +397,8 @@ def iso8601interval(value, argument='argument'):
     :rtype: A tuple (datetime, datetime)
     :raises ValueError: if the interval is invalid.
     '''
+    if not value:
+        raise ValueError('Expected a valid ISO8601 date/time interval.')
 
     try:
         start, end = _parse_interval(value)
@@ -408,7 +410,7 @@ def iso8601interval(value, argument='argument'):
 
     except ValueError:
         msg = 'Invalid {arg}: {value}. {arg} must be a valid ISO8601 date/time interval.'
-        raise ValueError(msg.format(arg=argument, value=value),)
+        raise ValueError(msg.format(arg=argument, value=value))
 
     return start, end
 
@@ -493,10 +495,12 @@ def boolean(value):
     if isinstance(value, bool):
         return value
 
-    if not value:
+    if value is None:
         raise ValueError('boolean type must be non-null')
-    value = value.lower()
-    if value in ('true', '1',):
+    elif not value:
+        return False
+    value = str(value).lower()
+    if value in ('true', '1', 'on',):
         return True
     if value in ('false', '0',):
         return False

@@ -195,11 +195,22 @@ class StringFieldTest(StringTestMixin, BaseFieldTestMixin, FieldTestCase):
         assert not field.required
         assert field.__schema__ == {'type': 'string', 'enum': enum, 'example': enum[0]}
 
+    def test_with_empty_enum(self):
+        field = fields.String(enum=[])
+        assert not field.required
+        assert field.__schema__ == {'type': 'string'}
+
     def test_with_callable_enum(self):
         enum = lambda: ['A', 'B', 'C']  # noqa
         field = fields.String(enum=enum)
         assert not field.required
         assert field.__schema__ == {'type': 'string', 'enum': ['A', 'B', 'C'], 'example': 'A'}
+
+    def test_with_empty_callable_enum(self):
+        enum = lambda: []  # noqa
+        field = fields.String(enum=enum)
+        assert not field.required
+        assert field.__schema__ == {'type': 'string'}
 
     def test_with_default(self):
         field = fields.String(default='aaa')
@@ -288,8 +299,8 @@ class BooleanFieldTest(BaseFieldTestMixin, FieldTestCase):
         (True, True),
         (False, False),
         ({}, False),
-        ('false', True),  # These are different from php
-        ('0', True),      # Will this be a problem?
+        ('false', False),  # These consistent with inputs.boolean
+        ('0', False),
     ])
     def test_value(self, value, expected):
         self.assert_field(fields.Boolean(), value, expected)
@@ -756,12 +767,18 @@ class NestedFieldTest(FieldTestCase):
     def test_with_description(self, api):
         nested_fields = api.model('NestedModel', {'name': fields.String})
         field = fields.Nested(nested_fields, description='A description')
-        assert field.__schema__ == {'$ref': '#/definitions/NestedModel', 'description': 'A description'}
+        assert field.__schema__ == {
+            'description': 'A description',
+            'allOf': [{'$ref': '#/definitions/NestedModel'}]
+        }
 
     def test_with_title(self, api):
         nested_fields = api.model('NestedModel', {'name': fields.String})
         field = fields.Nested(nested_fields, title='A title')
-        assert field.__schema__ == {'$ref': '#/definitions/NestedModel', 'title': 'A title'}
+        assert field.__schema__ == {
+            'title': 'A title',
+            'allOf': [{'$ref': '#/definitions/NestedModel'}]
+        }
 
     def test_with_allow_null(self, api):
         nested_fields = api.model('NestedModel', {'name': fields.String})
@@ -781,7 +798,10 @@ class NestedFieldTest(FieldTestCase):
         api = Api(app)
         nested_fields = api.model('NestedModel', {'name': fields.String})
         field = fields.Nested(nested_fields, readonly=True)
-        assert field.__schema__ == {'$ref': '#/definitions/NestedModel', 'readOnly': True}
+        assert field.__schema__ == {
+            'readOnly': True,
+            'allOf': [{'$ref': '#/definitions/NestedModel'}]
+        }
 
     def test_as_list(self, api):
         nested_fields = api.model('NestedModel', {'name': fields.String})
@@ -880,6 +900,141 @@ class ListFieldTest(BaseFieldTestMixin, FieldTestCase):
 
         data = [1, 2, 'a']
         self.assert_field(field, data, data)
+
+
+class WildcardFieldTest(BaseFieldTestMixin, FieldTestCase):
+    field_class = partial(fields.Wildcard, fields.String)
+
+    def test_types(self):
+        with pytest.raises(fields.MarshallingError):
+            class WrongType:
+                pass
+            x = WrongType()
+            field1 = fields.Wildcard(WrongType)  # noqa
+            field2 = fields.Wildcard(x)  # noqa
+
+    def test_defaults(self):
+        field = fields.Wildcard(fields.String)
+        assert not field.required
+        assert field.__schema__ == {'type': 'object', 'additionalProperties': {'type': 'string'}}
+
+    def test_with_scoped_attribute_on_dict_or_obj(self):
+        class Test(object):
+            def __init__(self, data):
+                self.data = data
+
+        class Nested(object):
+            def __init__(self, value):
+                self.value = value
+
+        nesteds = [Nested(i) for i in ['a', 'b', 'c']]
+        test_obj = Test(nesteds)
+        test_dict = {'data': [{'value': 'a'}, {'value': 'b'}, {'value': 'c'}]}
+
+        field = fields.Wildcard(fields.String(attribute='value'), attribute='data')
+        assert ['a' == 'b', 'c'], field.output('whatever', test_obj)
+        assert ['a' == 'b', 'c'], field.output('whatever', test_dict)
+
+    def test_list_of_raw(self):
+        field = fields.Wildcard(fields.Raw)
+
+        data = [{'a': 1, 'b': 1}, {'a': 2, 'b': 1}, {'a': 3, 'b': 1}]
+        expected = [OrderedDict([('a', 1), ('b', 1)]),
+                    OrderedDict([('a', 2), ('b', 1)]),
+                    OrderedDict([('a', 3), ('b', 1)])]
+        self.assert_field(field, data, expected)
+
+        data = [1, 2, 'a']
+        self.assert_field(field, data, data)
+
+    def test_wildcard(self, api):
+        wild1 = fields.Wildcard(fields.String)
+        wild2 = fields.Wildcard(fields.Integer)
+        wild3 = fields.Wildcard(fields.String)
+        wild4 = fields.Wildcard(fields.String, default='x')
+        wild5 = fields.Wildcard(fields.String)
+        wild6 = fields.Wildcard(fields.Integer)
+        wild7 = fields.Wildcard(fields.String)
+        wild8 = fields.Wildcard(fields.String)
+
+        mod5 = OrderedDict()
+        mod5['toto'] = fields.Integer
+        mod5['bob'] = fields.Integer
+        mod5['*'] = wild5
+
+        wild_fields1 = api.model('WildcardModel1', {'*': wild1})
+        wild_fields2 = api.model('WildcardModel2', {'j*': wild2})
+        wild_fields3 = api.model('WildcardModel3', {'*': wild3})
+        wild_fields4 = api.model('WildcardModel4', {'*': wild4})
+        wild_fields5 = api.model('WildcardModel5', mod5)
+        wild_fields6 = api.model('WildcardModel6', {
+            'nested': {'f1': fields.String(default='12'), 'f2': fields.Integer(default=13)},
+            'a*': wild6
+        })
+        wild_fields7 = api.model('WildcardModel7', {'*': wild7})
+        wild_fields8 = api.model('WildcardModel8', {'*': wild8})
+
+        class Dummy(object):
+            john = 12
+            bob = '42'
+            alice = None
+
+        class Dummy2(object):
+            pass
+
+        class Dummy3(object):
+            a = None
+            b = None
+
+        data = {'John': 12, 'bob': 42, 'Jane': '68'}
+        data3 = Dummy()
+        data4 = Dummy2()
+        data5 = {'John': 12, 'bob': 42, 'Jane': '68', 'toto': '72'}
+        data6 = {'nested': {'f1': 12, 'f2': 13}, 'alice': '14'}
+        data7 = Dummy3()
+        data8 = None
+        expected1 = {'John': '12', 'bob': '42', 'Jane': '68'}
+        expected2 = {'John': 12, 'Jane': 68}
+        expected3 = {'john': '12', 'bob': '42'}
+        expected4 = {'*': 'x'}
+        expected5 = {'John': '12', 'bob': 42, 'Jane': '68', 'toto': 72}
+        expected6 = {'nested': {'f1': '12', 'f2': 13}, 'alice': 14}
+        expected7 = {}
+        expected8 = {}
+
+        result1 = api.marshal(data, wild_fields1)
+        result2 = api.marshal(data, wild_fields2)
+        result3 = api.marshal(data3, wild_fields3, skip_none=True)
+        result4 = api.marshal(data4, wild_fields4)
+        result5 = api.marshal(data5, wild_fields5)
+        result6 = api.marshal(data6, wild_fields6)
+        result7 = api.marshal(data7, wild_fields7, skip_none=True)
+        result8 = api.marshal(data8, wild_fields8, skip_none=True)
+
+        assert expected1 == result1
+        assert expected2 == result2
+        assert expected3 == result3
+        assert expected4 == result4
+        assert expected5 == result5
+        assert expected6 == result6
+        assert expected7 == result7
+        assert expected8 == result8
+
+    def test_clone(self, api):
+        wild1 = fields.Wildcard(fields.String)
+        wild2 = wild1.clone()
+
+        wild_fields1 = api.model('cloneWildcard1', {'*': wild1})
+        wild_fields2 = api.model('cloneWildcard2', {'*': wild2})
+
+        data = {'John': 12, 'bob': 42, 'Jane': '68'}
+        expected1 = {'John': '12', 'bob': '42', 'Jane': '68'}
+
+        result1 = api.marshal(data, wild_fields1)
+        result2 = api.marshal(data, wild_fields2)
+
+        assert expected1 == result1
+        assert result2 == result1
 
 
 class ClassNameFieldTest(StringTestMixin, BaseFieldTestMixin, FieldTestCase):

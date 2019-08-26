@@ -19,7 +19,7 @@ NOTE: * This is a Flask-restplus example and does not apply to Sanic-Restplus *
     ns = api.namespace('todos', description='TODO operations')
 
     todo = api.model('Todo', {
-        'id': fields.Integer(readOnly=True, description='The task unique identifier'),
+        'id': fields.Integer(readonly=True, description='The task unique identifier'),
         'task': fields.String(required=True, description='The task details')
     })
 

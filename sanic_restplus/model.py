@@ -4,9 +4,9 @@ import copy
 import re
 import warnings
 
-from methodtools import lru_cache
+
 from collections import OrderedDict, MutableMapping
-from six import iteritems, itervalues
+from functools import lru_cache
 
 from .mask import Mask
 from .errors import abort
@@ -115,7 +115,7 @@ class ModelBase(object):
     __str__ = __unicode__
 
 
-class Model(ModelBase, OrderedDict, MutableMapping):
+class RawModel(ModelBase):
     '''
     A thin wrapper on ordered fields dict to store API doc metadata.
     Can also be used for response marshalling.
@@ -124,11 +124,13 @@ class Model(ModelBase, OrderedDict, MutableMapping):
     :param str mask: an optional default model mask
     '''
 
+    wrapper = dict
+
     def __init__(self, name, *args, **kwargs):
         self.__mask__ = kwargs.pop('mask', None)
         if self.__mask__ and not isinstance(self.__mask__, Mask):
             self.__mask__ = Mask(self.__mask__)
-        super(Model, self).__init__(name, *args, **kwargs)
+        super(RawModel, self).__init__(name, *args, **kwargs)
 
         def instance_clone(name, *parents):
             return self.__class__.clone(name, self, *parents)
@@ -136,10 +138,10 @@ class Model(ModelBase, OrderedDict, MutableMapping):
 
     @property
     def _schema(self):
-        properties = OrderedDict()
+        properties = self.wrapper()
         required = set()
         discriminator = None
-        for name, field in iteritems(self):
+        for name, field in self.items():
             field = instance(field)
             properties[name] = field.__schema__
             if field.required:
@@ -155,29 +157,33 @@ class Model(ModelBase, OrderedDict, MutableMapping):
             'type': 'object',
         })
 
-    @property
-    @lru_cache
-    def resolved(self):
+
+    def _resolved(self):
         '''
         Resolve real fields before submitting them to marshal
         '''
+        already_resolved = self._resolved.already_resolved.get(id(self), False)
+        if already_resolved:
+            return already_resolved
         # Duplicate fields
-        resolved = copy.deepcopy(self)
+        res = copy.deepcopy(self)
 
         # Recursively copy parent fields if necessary
         for parent in self.__parents__:
-            resolved.update(parent.resolved)
+            res.update(parent.resolved)
 
         # Handle discriminator
-        candidates = [f for f in itervalues(resolved) if getattr(f, 'discriminator', None)]
+        candidates = [f for f in res.values() if getattr(f, 'discriminator', None)]
         # Ensure the is only one discriminator
         if len(candidates) > 1:
             raise ValueError('There can only be one discriminator by schema')
         # Ensure discriminator always output the model name
         elif len(candidates) == 1:
             candidates[0].default = self.name
-
-        return resolved
+        self._resolved.already_resolved[id(self)] = res
+        return res
+    _resolved.already_resolved = {}
+    resolved = property(_resolved)
 
     def extend(self, name, fields):
         '''
@@ -210,7 +216,7 @@ class Model(ModelBase, OrderedDict, MutableMapping):
         :param str name: The new model name
         :param dict parents: The new model extra fields
         '''
-        fields = OrderedDict()
+        fields = cls.wrapper()
         for parent in parents:
             fields.update(copy.deepcopy(parent))
         return cls(name, fields)
@@ -221,6 +227,28 @@ class Model(ModelBase, OrderedDict, MutableMapping):
                              mask=self.__mask__)
         obj.__parents__ = self.__parents__
         return obj
+
+
+class Model(RawModel, dict, MutableMapping):
+    '''
+    A thin wrapper on fields dict to store API doc metadata.
+    Can also be used for response marshalling.
+
+    :param str name: The model public name
+    :param str mask: an optional default model mask
+    '''
+    pass
+
+
+class OrderedModel(RawModel, OrderedDict, MutableMapping):
+    '''
+    A thin wrapper on ordered fields dict to store API doc metadata.
+    Can also be used for response marshalling.
+
+    :param str name: The model public name
+    :param str mask: an optional default model mask
+    '''
+    wrapper = OrderedDict
 
 
 class SchemaModel(ModelBase):
