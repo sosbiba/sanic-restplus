@@ -146,7 +146,7 @@ def parse_accept_header(value):
     """Parses an HTTP Accept-* header.  This does not implement a complete
     valid algorithm but one that supports at least value and quality extraction.
     :param value: the accept header string to be parsed.
-    :return: a list of ``(value, quality)`` tuples sorted by the quality.
+    :return: a list of ``(value, quality)`` tuples.
     """
     result = []
     for match in _accept_re.finditer(value):
