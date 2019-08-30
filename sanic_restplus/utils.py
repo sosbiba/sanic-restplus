@@ -159,7 +159,7 @@ def parse_accept_header(value):
     return result
 
 def get_accept_mimetypes(request):
-    accept_types = request.headers.get("accept", None)
+    accept_types = request.headers.get('accept', None)
     if accept_types is None:
         return {}
     # keep the order they appear!
