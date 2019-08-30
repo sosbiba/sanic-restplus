@@ -119,7 +119,7 @@ def unpack(response, default_code=HTTPStatus.OK):
     else:
         raise ValueError('Too many response values')
 
-# Shamelesly copied from werkzeug:
+# Shamelessly copied from werkzeug:
 # https://github.com/pallets/werkzeug/blob/master/src/werkzeug/http.py
 # for explanation of "media-range", etc. see Sections 5.3.{1,2} of RFC 7231
 _accept_re = re.compile(
