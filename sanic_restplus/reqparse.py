@@ -93,7 +93,7 @@ class Argument(object):
     '''
 
     def __init__(self, name, default=None, dest=None, required=False,
-                 ignore=False, type=str, location=('json', 'values',),
+                 ignore=False, type=str, location=('json', 'args',),
                  choices=(), action='store', help=None, operators=('=',),
                  case_sensitive=True, store_missing=True, trim=False,
                  nullable=True):
@@ -131,7 +131,7 @@ class Argument(object):
                 if callable(value):
                     value = value()
                 if value is not None:
-                    values.update(value)
+                    values.update(CIMultiDict([(k,a) for k,v in value.items() for a in v]))
             return values
 
         return CIMultiDict()
