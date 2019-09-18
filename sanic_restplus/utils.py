@@ -119,15 +119,51 @@ def unpack(response, default_code=HTTPStatus.OK):
     else:
         raise ValueError('Too many response values')
 
+# Shamelessly copied from werkzeug:
+# https://github.com/pallets/werkzeug/blob/master/src/werkzeug/http.py
+# for explanation of "media-range", etc. see Sections 5.3.{1,2} of RFC 7231
+_accept_re = re.compile(
+    r"""
+    (                       # media-range capturing-parenthesis
+      [^\s;,]+              # type/subtype
+      (?:[ \t]*;[ \t]*      # ";"
+        (?:                 # parameter non-capturing-parenthesis
+          [^\s;,q][^\s;,]*  # token that doesn't start with "q"
+        |                   # or
+          q[^\s;,=][^\s;,]* # token that is more than just "q"
+        )
+      )*                    # zero or more parameters
+    )                       # end of media-range
+    (?:[ \t]*;[ \t]*q=      # weight is a "q" parameter
+      (\d*(?:\.\d+)?)       # qvalue capturing-parentheses
+      [^,]*                 # "extension" accept params: who cares?
+    )?                      # accept params are optional
+    """,
+    re.VERBOSE,
+)
+
+def parse_accept_header(value):
+    """Parses an HTTP Accept-* header.  This does not implement a complete
+    valid algorithm but one that supports at least value and quality extraction.
+    :param value: the accept header string to be parsed.
+    :return: a list of ``(value, quality)`` tuples.
+    """
+    result = []
+    for match in _accept_re.finditer(value):
+        quality = match.group(2)
+        if not quality:
+            quality = 1
+        else:
+            quality = max(min(float(quality), 1), 0)
+        result.append((match.group(1), quality))
+    return result
 
 def get_accept_mimetypes(request):
     accept_types = request.headers.get('accept', None)
     if accept_types is None:
         return {}
-    split_types = str(accept_types).split(',')
     # keep the order they appear!
-    return OrderedDict([((s, 1,), s,) for s in split_types])
-
+    return OrderedDict([((s, q), s) for s, q in parse_accept_header(accept_types)])
 
 def best_match_accept_mimetype(request, representations, default=None):
     if representations is None or len(representations) < 1:
