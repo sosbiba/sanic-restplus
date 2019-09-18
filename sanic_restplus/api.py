@@ -283,7 +283,7 @@ class Api(object):
                 return self.render_doc(*args, **kwargs)
             render_doc = wraps(self.render_doc)(_render_doc)
             render_doc.__name__ = doc_route_name
-            spf._plugin_register_route(render_doc, restplus, context, self._doc)
+            spf._plugin_register_route(render_doc, restplus, context, self._doc, with_context=True)
 
         if self._doc != root_path:
             try:# app_or_blueprint.add_url_rule(self.prefix or '/', 'root', self.render_root)
@@ -405,13 +405,13 @@ class Api(object):
     def render_root(self, request):
         self.abort(HTTPStatus.NOT_FOUND)
 
-    async def render_doc(self, request):
+    async def render_doc(self, request, context):
         '''Override this method to customize the documentation page'''
         if self._doc_view:
             return self._doc_view()
         elif not self._doc:
             self.abort(HTTPStatus.NOT_FOUND)
-        response = apidoc.ui_for(request, self)
+        response = apidoc.ui_for(request, self, context)
         if asyncio.iscoroutine(response):
             response = await response
         return response

@@ -3,17 +3,13 @@
 import os
 import sys
 from sanic import Blueprint
-from sanic_jinja2 import SanicJinja2
-from jinja2 import PackageLoader
+from sanic_jinja2_spf import sanic_jinja2, PackageLoader
+from spf import SanicPluginsFramework
 
 async_req_version = (3, 6)
 cur_py_version = sys.version_info
 
 class Apidoc(Blueprint):
-    """
-    Allow to know if the blueprint has already been registered
-    until https://github.com/mitsuhiko/flask/pull/1301 is merged
-    """
     def __init__(self, *args, **kwargs):
         self.registered = False
         self.app = None
@@ -36,12 +32,12 @@ class Apidoc(Blueprint):
 
 
 apidoc = Apidoc('restplus_doc', None)
-
+spf = SanicPluginsFramework(apidoc)
 loader = PackageLoader(__name__, 'templates')
 if cur_py_version >= async_req_version:
-    j2 = SanicJinja2(apidoc, loader, enable_async=True)
+    j2 = spf.register_plugin(sanic_jinja2, loader=loader, enable_async=True)
 else:
-    j2 = SanicJinja2(apidoc, loader)
+    j2 = spf.register_plugin(sanic_jinja2, loader=loader)
 
 module_path = os.path.abspath(os.path.dirname(__file__))
 module_static = os.path.join(module_path, 'static')
@@ -64,16 +60,16 @@ def config():
 
 
 if cur_py_version >= async_req_version:
-    async def ui_for(request, api):
+    async def ui_for(request, api, request_context):
         """Render a SwaggerUI for a given API"""
         j2.add_env('swagger_static', swagger_static)
         j2.add_env('config', config())
         return await j2.render_async('swagger-ui.html', request, title=api.title,
-                               specs_url=api.specs_url, additional_css=api.additional_css)
+                                     specs_url=api.specs_url, additional_css=api.additional_css)
 else:
-    def ui_for(request, api):
+    def ui_for(request, api, request_context):
         """Render a SwaggerUI for a given API"""
         j2.add_env('swagger_static', swagger_static)
         j2.add_env('config', config())
         return j2.render('swagger-ui.html', request, title=api.title,
-                               specs_url=api.specs_url, additional_css=api.additional_css)
+                         specs_url=api.specs_url, additional_css=api.additional_css)
