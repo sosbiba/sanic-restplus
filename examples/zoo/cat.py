@@ -17,7 +17,7 @@ CATS = [
 class CatList(Resource):
     @api.doc('list_cats')
     @api.marshal_list_with(cat)
-    def get(self, request):
+    async def get(self, request):
         '''List all cats'''
         return CATS
 
@@ -28,7 +28,7 @@ class CatList(Resource):
 class Cat(Resource):
     @api.doc('get_cat')
     @api.marshal_with(cat)
-    def get(self, request, id):
+    async def get(self, request, id):
         '''Fetch a cat given its identifier'''
         for cat in CATS:
             if cat['id'] == id:

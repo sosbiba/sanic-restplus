@@ -4,6 +4,7 @@ import sys
 import asyncio
 import difflib
 import inspect
+from asyncio import iscoroutinefunction
 from itertools import chain
 import logging
 import operator
@@ -14,7 +15,9 @@ from functools import wraps, partial, lru_cache
 from types import MethodType
 
 from sanic.router import RouteExists, url_hash
-from sanic.response import HTTPResponse, text
+from sanic.response import text, BaseHTTPResponse
+from sanic.views import HTTPMethodView
+
 try:
     from sanic.response import ALL_STATUS_CODES
 except ImportError:
@@ -352,25 +355,36 @@ class Api(object):
                                        methods=methods, with_context=True, **kwargs)
 
     def output(self, resource):
-        '''
-        Wraps a resource (as a flask view function),
+        """
+        Wraps a resource (as a Sanic view function),
         for cases where the resource does not directly return a response object
 
-        :param resource: The resource as a flask view function
-        '''
+        :param resource: The resource as a Sanic view function
+        """
         @wraps(resource)
         async def wrapper(request, *args, **kwargs):
+            view_class = getattr(resource, 'view_class', None)
+            is_method_view = bool(view_class) and issubclass(view_class, HTTPMethodView)
+            do_await = iscoroutinefunction(resource)
             resp = resource(request, *args, **kwargs)
-            while inspect.isawaitable(resp):
+            if do_await:
                 resp = await resp
-            if isinstance(resp, HTTPResponse):
+            elif is_method_view:
+                # MethodView could wrap coroutines, without being a coroutine itself.
+                if inspect.isawaitable(resp):
+                    resp = await resp
+            resp_type = type(resp)
+            if issubclass(resp_type, BaseHTTPResponse):
                 return resp
+            elif inspect.isawaitable(resp):
+                # Can't unpack an awaitable.
+                raise RuntimeError("RestPlus output handler received a non-awaited coroutine or Task.")
             data, code, headers = unpack(resp)
             return self.make_response(request, data, code, headers=headers)
         return wrapper
 
     def make_response(self, request, data, *args, **kwargs):
-        '''
+        """
         Looks up the representation transformer for the requested media
         type, invoking the transformer to create a response object. This
         defaults to default_mediatype if no transformer is found for the
@@ -378,7 +392,7 @@ class Api(object):
         Acceptable response will be sent as per RFC 2616 section 14.1
 
         :param data: Python object containing response data to be transformed
-        '''
+        """
         default_mediatype = kwargs.pop('fallback_mediatype', None) or self.default_mediatype
         mediatype = best_match_accept_mimetype(request,
             self.representations,
@@ -701,7 +715,7 @@ class Api(object):
         context = restplus.get_context_from_spf(self.spf_reg)
         app = context.app
         #got_request_exception.send(app._get_current_object(), exception=e)
-        if not isinstance(e, SanicException) and app.propagate_exceptions:
+        if not isinstance(e, SanicException) and app.config['PROPAGATE_EXCEPTIONS']:
             exc_type, exc_value, tb = sys.exc_info()
             if exc_value is e:
                 raise
@@ -709,6 +723,7 @@ class Api(object):
                 raise e
 
         include_message_in_response = app.config.get("ERROR_INCLUDE_MESSAGE", True)
+        include_code_in_response = app.config.get("ERROR_INCLUDE_CODE", True)
         default_data = {}
         headers = Header()
         for typecheck, handler in self._own_and_child_error_handlers.items():
@@ -718,16 +733,17 @@ class Api(object):
                 break
         else:
             if isinstance(e, SanicException):
-                code = e.status_code
-                if code is 200:
+                sanic_code = code = e.status_code
+                if sanic_code is 200:
                     status = b'OK'
-                elif code is 404:
+                # x is y comparison only works between -5 and 256
+                elif sanic_code == 404:
                     status = b'Not Found'
-                elif code is 500:
+                elif sanic_code == 500:
                     status = b'Internal Server Error'
                 else:
-                    code = HTTPStatus(code)
-                    status = ALL_STATUS_CODES.get(code.value)
+                    status = ALL_STATUS_CODES.get(int(sanic_code))
+                code = HTTPStatus(sanic_code, None)
                 if status and isinstance(status, bytes):
                     status = status.decode('ascii')
                 if include_message_in_response:
@@ -750,6 +766,8 @@ class Api(object):
 
         if include_message_in_response:
             default_data['message'] = default_data.get('message', str(e))
+        if include_code_in_response:
+            default_data['code'] = int(code)
 
         data = getattr(e, 'data', default_data)
         fallback_mediatype = None
@@ -760,7 +778,7 @@ class Api(object):
                 exc_info = None
             context.log(logging.ERROR, exc_info)
 
-        elif code == HTTPStatus.NOT_FOUND and app.config.get("ERROR_404_HELP", True) \
+        elif code == HTTPStatus.NOT_FOUND and app.config.get("ERROR_404_HELP", False) \
                 and include_message_in_response:
             data['message'] = self._help_on_404(request, data.get('message', None))
 
@@ -775,7 +793,6 @@ class Api(object):
         # Remove blacklisted headers
         for header in HEADERS_BLACKLIST:
             headers.pop(header, None)
-
         resp = self.make_response(request, data, code, headers, fallback_mediatype=fallback_mediatype)
 
         if code == HTTPStatus.UNAUTHORIZED:
@@ -784,6 +801,7 @@ class Api(object):
 
     def _help_on_404(self, request, message=None):
         raise NotImplementedError("Help on 404 is not yet implemented for Sanic-RestPlus")
+        # TODO, need a way to get current app router, and plugin context, from the request
         rules = dict([(RE_RULES.sub('', rule.rule), rule.rule)
                       for rule in current_app.url_map.iter_rules()])
         close_matches = difflib.get_close_matches(request.path, rules.keys())
@@ -848,7 +866,7 @@ class Api(object):
         defaults = blueprint_setup.url_defaults
         if 'defaults' in options:
             defaults = dict(defaults, **options.pop('defaults'))
-        blueprint_setup.app.add_url_rule(rule, '%s.%s' % (blueprint_setup.blueprint.name, endpoint),
+        blueprint_setup.app.add_url_rule(rule, '{:s}.{:s}'.format(blueprint_setup.blueprint.name, endpoint),
                                          view_func, defaults=defaults, **options)
 
     def _deferred_blueprint_init(self, setup_state):
@@ -957,6 +975,7 @@ class ApiErrorHandler(ErrorHandler):
             try:
                 return self.api.handle_error(request, e1)
             except Exception as e2:
+                print(repr(e2))
                 import traceback
                 traceback.print_tb(e2.__traceback__)
                 # Fall through to original handler

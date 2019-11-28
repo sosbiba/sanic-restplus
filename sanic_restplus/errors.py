@@ -16,15 +16,16 @@ def abort(code=HTTPStatus.INTERNAL_SERVER_ERROR, message=None, **kwargs):
     """
     Properly abort the current request.
 
-    Raise a `HTTPException` for the given status `code`.
-    Attach any keyword arguments to the exception for later processing.
+    Raise a sanic exception for the corresponding error code
 
     :param int code: The associated HTTP status code
     :param str message: An optional details message
-    :param kwargs: Any additional data to pass to the error payload
-    :raise HTTPException:
+    :param kwargs: Any additional data to pass to the error payload  # TODO: ignored
+    :return: Nothing, expect an exception raised
+    :rtype: NoneType
     """
-    raise exceptions.SanicException(message=message, status_code=code)
+    status = int(code)
+    return exceptions.abort(status_code=status, message=message)
 
 
 class RestError(Exception):

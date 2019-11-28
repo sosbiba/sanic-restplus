@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 #
 import inspect
+from asyncio import iscoroutinefunction
 from sanic.views import HTTPMethodView
-from sanic.response import HTTPResponse
+from sanic.response import BaseHTTPResponse
 from sanic.constants import HTTP_METHODS
 
 from .model import ModelBase
@@ -88,7 +89,7 @@ class Resource(MethodViewExt, metaclass=ResourceMeta):
         meth = getattr(self, requestmethod.lower(), None)
         if meth is None and requestmethod == 'HEAD':
             meth = getattr(self, 'get', None)
-        assert meth is not None, 'Unimplemented method %r' % requestmethod
+        assert meth is not None, 'Unimplemented method {0!r}'.format(requestmethod)
         method_has_context = self.method_has_context.get(requestmethod, False)
         for decorator in self.method_decorators:
             meth = decorator(meth)
@@ -101,11 +102,16 @@ class Resource(MethodViewExt, metaclass=ResourceMeta):
                 pos = int(method_has_context) - 2  # skip self and request
                 args = list(args)
                 args.insert(pos, context)
+        do_await = iscoroutinefunction(meth)
         resp = meth(request, *args, **kwargs)
-        if inspect.isawaitable(resp):
+        if do_await:
             resp = await resp
-
-        if isinstance(resp, HTTPResponse):
+        resp_type = type(resp)
+        if issubclass(resp_type, BaseHTTPResponse):
+            return resp
+        elif inspect.isawaitable(resp):
+            # Still have a coroutine or awaitable even after waiting.
+            # let the output handler handle it
             return resp
 
         representations = self.representations or {}

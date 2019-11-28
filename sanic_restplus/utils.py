@@ -20,7 +20,7 @@ ALL_CAP_RE = re.compile('([a-z0-9])([A-Z])')
 __all__ = ('merge', 'camel_to_dash', 'default_id', 'not_none', 'not_none_sorted', 'unpack')
 
 
-def merge(first, second):
+def merge(first, second, _recurse=0):
     """
     Recursively merges two dictionaries.
 
@@ -37,7 +37,10 @@ def merge(first, second):
     result = deepcopy(first)
     for key, value in second.items():
         if key in result and isinstance(result[key], dict):
-            result[key] = merge(result[key], value)
+            if _recurse > 10:  # Max 10 dicts deep
+                result[key] = None
+            else:
+                result[key] = merge(result[key], value, _recurse=_recurse+1)
         else:
             result[key] = deepcopy(value)
     return result

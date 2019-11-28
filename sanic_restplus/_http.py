@@ -31,6 +31,44 @@ class HTTPStatus(IntEnum):
     def __str__(self):
         return str(self.value)
 
+    def __hash__(self):
+        return self.value.__hash__()
+
+    def __eq__(self, other):
+        if isinstance(other, HTTPStatus):
+            return self.value == other.value
+        elif isinstance(other, (tuple, list)) and len(other) > 1:
+            return self.value == other[0]
+        return False
+
+    def __gt__(self, other):
+        if isinstance(other, HTTPStatus):
+            return self.value > other.value
+        elif isinstance(other, (tuple, list)) and len(other) > 1:
+            return self.value > other[0]
+        return False
+
+    def __ge__(self, other):
+        if isinstance(other, HTTPStatus):
+            return self.value >= other.value
+        elif isinstance(other, (tuple, list)) and len(other) > 1:
+            return self.value >= other[0]
+        return False
+
+    def __lt__(self, other):
+        if isinstance(other, HTTPStatus):
+            return self.value < other.value
+        elif isinstance(other, (tuple, list)) and len(other) > 1:
+            return self.value < other[0]
+        return False
+
+    def __le__(self, other):
+        if isinstance(other, HTTPStatus):
+            return self.value <= other.value
+        elif isinstance(other, (tuple, list)) and len(other) > 1:
+            return self.value <= other[0]
+        return False
+
     # informational
     CONTINUE = 100, 'Continue', 'Request received, please continue'
     SWITCHING_PROTOCOLS = (101, 'Switching Protocols',
