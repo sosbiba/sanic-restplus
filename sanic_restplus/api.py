@@ -106,7 +106,7 @@ class Api(object):
             tags=None, prefix='', ordered=False,
             default_mediatype='application/json', decorators=None,
             catch_all_404s=False, serve_challenge_on_401=False, format_checker=None,
-            additional_css=None, **kwargs):
+            additional_css=None, error_logger=None, **kwargs):
         self.version = version
         self.title = title or 'API'
         self.description = description
@@ -160,6 +160,7 @@ class Api(object):
         self.additional_css = additional_css
         Api.uid_counter += 1
         self._uid = Api.uid_counter
+        self.error_logger = error_logger
 
         if spf_reg is not None:
             if isinstance(spf_reg, Sanic):
@@ -1055,6 +1056,9 @@ class ApiErrorHandler(ErrorHandler):
 
         :param Exception e: the exception raised while handling the request
         '''
+        
+        self.api.error_logger.exception(str(e))
+
         if self.api._has_fr_route(request):
             try:
                 return self.api.handle_error(request, e1)
