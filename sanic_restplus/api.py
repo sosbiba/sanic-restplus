@@ -703,19 +703,19 @@ class Api(object):
             route_endpoint_name = route_endpoint_name[len(plugin_name_prefix):]
         return self.owns_endpoint(route_endpoint_name)
 
-
     def handle_error(self, request, e):
-        '''
-        Error handler for the API transforms a raised exception into a Flask response,
+        """
+        Error handler for the API transforms a raised exception into a Sanic response,
         with the appropriate HTTP status code and body.
-
-        :param Exception e: the raised Exception object
-
-        '''
+        :param request: The Sanic Request object
+        :type request: sanic.request.Request
+        :param e: the raised Exception object
+        :type e: Exception
+        """
         context = restplus.get_context_from_spf(self.spf_reg)
         app = context.app
         #got_request_exception.send(app._get_current_object(), exception=e)
-        if not isinstance(e, SanicException) and app.config['PROPAGATE_EXCEPTIONS']:
+        if not isinstance(e, SanicException) and app.config.get('PROPAGATE_EXCEPTIONS', False):
             exc_type, exc_value, tb = sys.exc_info()
             if exc_value is e:
                 raise
@@ -827,10 +827,8 @@ class Api(object):
         '''
         return PostmanCollectionV1(self, swagger=swagger).as_dict(urlvars=urlvars)
 
-    # TODO: Sanic, payload (as a property) cannot see the request.
-    #@property
     def payload(self, request):
-        '''Store the input payload in the current request context'''
+        """Default behaviour for payload() is just to return the request.json"""
         return request.json
 
     @property

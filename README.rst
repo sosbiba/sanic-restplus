@@ -8,6 +8,12 @@ If you are familiar with Sanic, Sanic-RESTPlus should be easy to pick up.
 It provides a coherent collection of decorators and tools to describe your API
 and expose its documentation properly using `Swagger`_.
 
+Important Notice
+================
+
+Sanic-RestPlus version 0.4.1 (and previous versions) **does not work** on Sanic 19.12+, see this bug here: https://github.com/ashleysommer/sanicpluginsframework/issues/15
+
+A fix is coming, but in the meantime, please use RestPlus with Sanic v19.6.3 or v19.9.0.
 
 Compatibility
 =============
