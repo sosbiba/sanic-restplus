@@ -20,16 +20,15 @@ The last line allows you to document properly the type in the Swagger documentat
 import re
 import socket
 
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 from email.utils import parsedate_tz, mktime_tz
 from urllib.parse import urlparse
 
 import aniso8601
-import pytz
 
 # Constants for upgrading date-based intervals to full datetimes.
-START_OF_DAY = time(0, 0, 0, tzinfo=pytz.UTC)
-END_OF_DAY = time(23, 59, 59, 999999, tzinfo=pytz.UTC)
+START_OF_DAY = time(0, 0, 0, tzinfo=timezone.utc)
+END_OF_DAY = time(23, 59, 59, 999999, tzinfo=timezone.utc)
 
 
 netloc_regex = re.compile(
@@ -322,11 +321,11 @@ def _normalize_interval(start, end, value):
         end = datetime.combine(end, START_OF_DAY)
 
     if start.tzinfo is None:
-        start = pytz.UTC.localize(start)
-        end = pytz.UTC.localize(end)
+        start = start.replace(tzinfo=timezone.utc)
+        end = end.replace(tzinfo=timezone.utc)
     else:
-        start = start.astimezone(pytz.UTC)
-        end = end.astimezone(pytz.UTC)
+        start = start.astimezone(timezone.utc)
+        end = end.astimezone(timezone.utc)
 
     return start, end
 
@@ -531,9 +530,9 @@ def datetime_from_rfc822(value):
         timetuple = parsedate_tz(value)
         timestamp = mktime_tz(timetuple)
         if timetuple[-1] is None:
-            return datetime.fromtimestamp(timestamp).replace(tzinfo=pytz.utc)
+            return datetime.fromtimestamp(timestamp).replace(tzinfo=timezone.utc)
         else:
-            return datetime.fromtimestamp(timestamp, pytz.utc)
+            return datetime.fromtimestamp(timestamp, timezone.utc)
     except Exception:
         raise ValueError('Invalid date literal "{0}"'.format(raw))
 

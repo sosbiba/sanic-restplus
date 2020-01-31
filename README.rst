@@ -19,6 +19,7 @@ Compatibility
 =============
 
 Sanic-RestPlus requires Python 3.5+.
+Sanic-RestPlus works with Sanic v18.12+
 
 
 Installation

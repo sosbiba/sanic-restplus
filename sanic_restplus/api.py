@@ -17,6 +17,7 @@ from types import MethodType
 from sanic.router import RouteExists, url_hash
 from sanic.response import text, BaseHTTPResponse
 from sanic.views import HTTPMethodView
+from spf.plugin import FutureRoute
 
 try:
     from sanic.response import ALL_STATUS_CODES
@@ -58,15 +59,6 @@ log = logging.getLogger(__name__)
 
 class Api(object):
     '''
-    The main entry point for the application.
-    You need to initialize it with a Flask Application: ::
-
-    >>> app = Sanic(__name__)
-    >>> api = Api(app)
-
-    Alternatively, you can use :meth:`init_app` to set the Flask application
-    after it has been constructed.
-
     The endpoint parameter prefix all views and resources:
 
         - The API root/documentation will be ``{endpoint}.root``
@@ -279,24 +271,25 @@ class Api(object):
         (spf, plugin_name, plugin_url_prefix) = self.spf_reg
         context = restplus.get_context_from_spf(self.spf_reg)
         if self._add_specs and self._doc:
-            doc_route_name = '{}.{}_doc'.format(plugin_name, str(self._uid))
+            doc_endpoint_name = '{}_doc'.format(str(self._uid))
 
             def _render_doc(*args, **kwargs):
                 nonlocal self
                 return self.render_doc(*args, **kwargs)
             render_doc = wraps(self.render_doc)(_render_doc)
-            render_doc.__name__ = doc_route_name
-            spf._plugin_register_route(render_doc, restplus, context, self._doc, with_context=True)
-
+            render_doc.__name__ = doc_endpoint_name
+            r = FutureRoute(render_doc, self._doc, (), {'with_context': True})
+            spf._register_route_helper(r, spf, restplus, context, plugin_name, plugin_url_prefix)
         if self._doc != root_path:
             try:# app_or_blueprint.add_url_rule(self.prefix or '/', 'root', self.render_root)
-                root_route_name = '{}.{}_root'.format(plugin_name, str(self._uid))
+                root_endpoint_name = '{}_root'.format(str(self._uid))
                 def _render_root(*args, **kwargs):
                     nonlocal self
                     return self.render_root(*args, **kwargs)
                 render_root = wraps(self.render_root)(_render_root)
-                render_root.__name__ = root_route_name
-                spf._plugin_register_route(render_root, restplus, context, root_path)
+                render_root.__name__ = root_endpoint_name
+                r = FutureRoute(render_root, root_path, (), {})
+                spf._register_route_helper(r, spf, restplus, context, plugin_name, plugin_url_prefix)
 
             except RouteExists:
                 pass
@@ -319,7 +312,7 @@ class Api(object):
         resource_class_args = kwargs.pop('resource_class_args', ())
         resource_class_kwargs = kwargs.pop('resource_class_kwargs', {})
         (spf, plugin_name, plugin_url_prefix) = self.spf_reg
-        endpoint = "{}.{}".format(plugin_name, endpoint)
+        #endpoint = "{}.{}".format(plugin_name, endpoint)
         resource.mediatypes = self.mediatypes_method()  # Hacky
         resource.endpoint = endpoint
         methods = resource.methods
@@ -349,10 +342,10 @@ class Api(object):
                     rule = partial(self._complete_url, url)
             else:
                 # If we've got no Blueprint, just build a url with no prefix
-                rule = self._complete_url(url, plugin_url_prefix)
+                rule = self._complete_url(url, '')
             # Add the url to the application or blueprint
-            spf._plugin_register_route(resource_func, restplus, context, rule,
-                                       methods=methods, with_context=True, **kwargs)
+            r = FutureRoute(resource_func, rule, (), {'with_context': True})
+            spf._register_route_helper(r, spf, restplus, context, plugin_name, plugin_url_prefix)
 
     def output(self, resource):
         """

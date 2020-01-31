@@ -2,16 +2,15 @@
 from __future__ import unicode_literals
 
 from collections import OrderedDict
-from datetime import date, datetime
+from datetime import date, datetime, timezone, timedelta
 from decimal import Decimal
 from functools import partial
 
-import pytz
 import pytest
 
 from flask import Blueprint
 from sanic_restplus import fields, Api
-
+cet = timezone(timedelta(hours=1), 'CET')
 
 class FieldTestCase(object):
     field_class = None
@@ -477,9 +476,9 @@ class DatetimeFieldTest(BaseFieldTestMixin, FieldTestCase):
         (datetime(2011, 1, 1), 'Sat, 01 Jan 2011 00:00:00 -0000'),
         (datetime(2011, 1, 1, 23, 59, 59),
          'Sat, 01 Jan 2011 23:59:59 -0000'),
-        (datetime(2011, 1, 1, 23, 59, 59, tzinfo=pytz.utc),
+        (datetime(2011, 1, 1, 23, 59, 59, tzinfo=timezone.utc),
          'Sat, 01 Jan 2011 23:59:59 -0000'),
-        (datetime(2011, 1, 1, 23, 59, 59, tzinfo=pytz.timezone('CET')),
+        (datetime(2011, 1, 1, 23, 59, 59, tzinfo=cet),
          'Sat, 01 Jan 2011 22:59:59 -0000')
     ])
     def test_rfc822_value(self, value, expected):
@@ -492,11 +491,11 @@ class DatetimeFieldTest(BaseFieldTestMixin, FieldTestCase):
          '2011-01-01T23:59:59'),
         (datetime(2011, 1, 1, 23, 59, 59, 1000),
          '2011-01-01T23:59:59.001000'),
-        (datetime(2011, 1, 1, 23, 59, 59, tzinfo=pytz.utc),
+        (datetime(2011, 1, 1, 23, 59, 59, tzinfo=timezone.utc),
          '2011-01-01T23:59:59+00:00'),
-        (datetime(2011, 1, 1, 23, 59, 59, 1000, tzinfo=pytz.utc),
+        (datetime(2011, 1, 1, 23, 59, 59, 1000, tzinfo=timezone.utc),
          '2011-01-01T23:59:59.001000+00:00'),
-        (datetime(2011, 1, 1, 23, 59, 59, tzinfo=pytz.timezone('CET')),
+        (datetime(2011, 1, 1, 23, 59, 59, tzinfo=cet),
          '2011-01-01T23:59:59+01:00')
     ])
     def test_iso8601_value(self, value, expected):
@@ -587,9 +586,9 @@ class DateFieldTest(BaseFieldTestMixin, FieldTestCase):
         (datetime(2011, 1, 1), '2011-01-01'),
         (datetime(2011, 1, 1, 23, 59, 59), '2011-01-01'),
         (datetime(2011, 1, 1, 23, 59, 59, 1000), '2011-01-01'),
-        (datetime(2011, 1, 1, 23, 59, 59, tzinfo=pytz.utc), '2011-01-01'),
-        (datetime(2011, 1, 1, 23, 59, 59, 1000, tzinfo=pytz.utc), '2011-01-01'),
-        (datetime(2011, 1, 1, 23, 59, 59, tzinfo=pytz.timezone('CET')), '2011-01-01')
+        (datetime(2011, 1, 1, 23, 59, 59, tzinfo=timezone.utc), '2011-01-01'),
+        (datetime(2011, 1, 1, 23, 59, 59, 1000, tzinfo=timezone.utc), '2011-01-01'),
+        (datetime(2011, 1, 1, 23, 59, 59, tzinfo=cet), '2011-01-01')
     ])
     def test_value(self, value, expected):
         self.assert_field(fields.Date(), value, expected)
