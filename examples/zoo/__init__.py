@@ -7,7 +7,8 @@ api = Api(
     title='Zoo API',
     version='1.0',
     description='A simple demo API',
-    additional_css="/static/testme.css"
+    additional_css="/static/testme.css",
+    doc='/doc'
 )
 
 api.add_namespace(cat_api)

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-from . import fields, reqparse, apidoc, inputs, cors
+from . import fields, reqparse, inputs, cors
 from .api import Api  # noqa
 from .marshalling import marshal, marshal_with, marshal_with_field  # noqa
 from .mask import Mask
@@ -16,7 +16,6 @@ __all__ = (
     '__description__',
     'Api',
     'Resource',
-    'apidoc',
     'marshal',
     'marshal_with',
     'marshal_with_field',

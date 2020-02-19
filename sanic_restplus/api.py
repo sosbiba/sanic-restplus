@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 import sys
+import os
 import asyncio
 import difflib
 import inspect
@@ -14,16 +15,20 @@ from collections import OrderedDict
 from functools import wraps, partial, lru_cache, update_wrapper
 from types import MethodType
 
+from jinja2 import PackageLoader
 from sanic.router import RouteExists, url_hash
 from sanic.response import text, BaseHTTPResponse
 from sanic.views import HTTPMethodView
-from spf.plugin import FutureRoute
+from sanic_jinja2_spf import sanic_jinja2 as sanic_jinja2_plugin
+from sanic_jinja2 import SanicJinja2
+from spf.plugin import FutureRoute, FutureStatic
+
 try:
     from sanic.response import ALL_STATUS_CODES
 except ImportError:
     from sanic.response import STATUS_CODES as ALL_STATUS_CODES
 from sanic.handlers import ErrorHandler
-from sanic.exceptions import SanicException, InvalidUsage, NotFound
+from sanic.exceptions import SanicException, InvalidUsage, NotFound, abort
 from sanic import exceptions, Sanic, Blueprint
 try:
     from sanic.compat import Header
@@ -35,7 +40,6 @@ except ImportError:
 from spf import SanicPluginsFramework
 from jsonschema import RefResolver
 
-from . import apidoc
 from .restplus import restplus
 from .mask import ParseError, MaskError
 from .namespace import Namespace
@@ -45,6 +49,9 @@ from .swagger import Swagger
 from .utils import default_id, camel_to_dash, unpack, best_match_accept_mimetype, get_accept_mimetypes
 from .representations import output_json
 from ._http import HTTPStatus
+
+async_req_version = (3, 6)
+cur_py_version = sys.version_info
 
 RE_RULES = re.compile('(<.*>)')
 
@@ -220,8 +227,10 @@ class Api(object):
 
         :param sanic.Sanic app: The sanic application object
         """
+        render_api_fn = self._setup_jinja2_renderer()
         self._register_specs()
-        self._register_doc()
+        self._register_doc(render_api_fn)
+        self._register_static()
 
         app.error_handler = ApiErrorHandler(app.error_handler, self)
         #app.handle_user_exception = partial(self.error_router, app.handle_user_exception)
@@ -230,7 +239,7 @@ class Api(object):
             for resource, namespace, urls, kwargs in self.resources:
                 self._register_view(resource, namespace, *urls, **kwargs)
 
-        self._register_apidoc(app)
+        #self._register_apidoc(app)
         self._validate = self._validate if self._validate is not None else app.config.get('RESTPLUS_VALIDATE', False)
         app.config.setdefault('RESTPLUS_MASK_HEADER', 'X-Fields')
         app.config.setdefault('RESTPLUS_MASK_SWAGGER', True)
@@ -256,11 +265,73 @@ class Api(object):
         parts = (registration_prefix, self.prefix, url_part)
         return ''.join(part for part in parts if part)
 
-    def _register_apidoc(self, app):
+    # def _register_apidoc(self, app):
+    #     context = restplus.get_context_from_spf(self.spf_reg)
+    #     if not context.get('apidoc_registered', False):
+    #         app.blueprint(apidoc.apidoc, url_prefix=self.prefix)
+    #         context['apidoc_registered'] = True
+    #     else:
+    #         warnings.warn("Attempting to re-register the apidoc blueprint, skipped.")
+
+    def _setup_jinja2_renderer(self):
+        spf, plugin_name, plugin_prefix = self.spf_reg
+        loader = PackageLoader(__name__, 'templates')
+        enable_async = cur_py_version >= async_req_version
+        if spf._running:  # can't add a new plugin
+            try:
+                j2 = sanic_jinja2_plugin.find_plugin_registration(spf)
+            except (AttributeError, LookupError):
+                context = restplus.get_context_from_spf(self.spf_reg)
+                app = context.app
+                j2 = SanicJinja2(app, loader=loader, pkg_name=plugin_name, enable_async=enable_async)
+        else:
+            j2 = spf.register_plugin(sanic_jinja2_plugin, loader=loader, enable_async=enable_async)
+
+        def swagger_static(filename):
+            nonlocal self
+            spf, plugin_name, plugin_prefix = self.spf_reg
+            endpoint = '{}.static'.format(str(self._uid))
+            return restplus.spf_resolve_url_for(spf, endpoint, filename=filename)
+
+        def config():
+            nonlocal self
+            context = restplus.get_context_from_spf(self.spf_reg)
+            app = context.app
+            if isinstance(app, Blueprint):
+                return {}
+            return app.config
+
+        if cur_py_version >= async_req_version:
+            async def api_renderer(request, api, request_context):
+                """Render a SwaggerUI for a given API"""
+                nonlocal j2, swagger_static, config
+                j2.add_env('swagger_static', swagger_static)
+                j2.add_env('config', config())
+                return await j2.render_async('swagger-ui.html', request, title=api.title,
+                                             specs_url=api.specs_url, additional_css=api.additional_css)
+        else:
+            def api_renderer(request, api, request_context):
+                """Render a SwaggerUI for a given API"""
+                nonlocal j2, swagger_static, config
+                j2.add_env('swagger_static', swagger_static)
+                j2.add_env('config', config())
+                return j2.render('swagger-ui.html', request, title=api.title,
+                                 specs_url=api.specs_url, additional_css=api.additional_css)
+        return api_renderer
+
+    def _register_static(self):
+        (spf, plugin_name, plugin_url_prefix) = self.spf_reg
         context = restplus.get_context_from_spf(self.spf_reg)
-        if not context.get('apidoc_registered', False):
-            app.blueprint(apidoc.apidoc)
-        context['apidoc_registered'] = True
+        module_path = os.path.abspath(os.path.dirname(__file__))
+        module_static = os.path.join(module_path, 'static')
+        endpoint = '{}.static'.format(str(self._uid))
+        kwargs = { "name": endpoint }
+        if os.path.isdir(module_static):
+            s = FutureStatic('/swaggerui', module_static, (), kwargs)
+        else:
+            s = FutureStatic('/swaggerui', './sanic_restplus/static', (), kwargs)
+        spf._register_static_helper(s, spf, restplus, context, plugin_name, plugin_url_prefix)
+
 
     def _register_specs(self):
         if self._add_specs:
@@ -274,7 +345,7 @@ class Api(object):
             )
             self.endpoints.add(endpoint)
 
-    def _register_doc(self):
+    def _register_doc(self, api_renderer):
         root_path = self.prefix or '/'
         (spf, plugin_name, plugin_url_prefix) = self.spf_reg
         context = restplus.get_context_from_spf(self.spf_reg)
@@ -282,8 +353,8 @@ class Api(object):
             doc_endpoint_name = '{}_doc'.format(str(self._uid))
 
             def _render_doc(*args, **kwargs):
-                nonlocal self
-                return self.render_doc(*args, **kwargs)
+                nonlocal self, api_renderer
+                return self.render_doc(*args, api_renderer=api_renderer, **kwargs)
             render_doc = wraps(self.render_doc)(_render_doc)
             render_doc.__name__ = doc_endpoint_name
             r = FutureRoute(render_doc, self._doc, (), {'with_context': True})
@@ -420,13 +491,16 @@ class Api(object):
     def render_root(self, request):
         self.abort(HTTPStatus.NOT_FOUND)
 
-    async def render_doc(self, request, context):
+    async def render_doc(self, request, context, api_renderer=None):
         '''Override this method to customize the documentation page'''
         if self._doc_view:
-            return self._doc_view()
+            response = self._doc_view()
         elif not self._doc:
-            self.abort(HTTPStatus.NOT_FOUND)
-        response = apidoc.ui_for(request, self, context)
+            return abort(HTTPStatus.NOT_FOUND)
+        elif api_renderer is None:
+            raise RuntimeError("No renderer function given for Doc view")
+        else:
+            response = api_renderer(request, self, context)
         if asyncio.iscoroutine(response):
             response = await response
         return response
