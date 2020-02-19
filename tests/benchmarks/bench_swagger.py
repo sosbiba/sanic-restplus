@@ -1,7 +1,7 @@
 import pytest
 
-from flask_restplus import fields, Api, Resource
-from flask_restplus.swagger import Swagger
+from sanic_restplus import fields, Api, Resource
+from sanic_restplus.swagger import Swagger
 
 api = Api()
 
@@ -21,13 +21,13 @@ family = api.model('Family', {
 @api.route('/families', endpoint='families')
 class Families(Resource):
     @api.marshal_with(family)
-    def get(self):
+    async def get(self, request):
         '''List all families'''
         pass
 
     @api.marshal_with(family)
     @api.response(201, 'Family created')
-    def post(self):
+    async def post(self, request):
         '''Create a new family'''
         pass
 
@@ -36,7 +36,7 @@ class Families(Resource):
 @api.response(404, 'Family not found')
 class Family(Resource):
     @api.marshal_with(family)
-    def get(self):
+    async def get(self, request):
         '''Get a family given its name'''
         pass
 
@@ -49,13 +49,13 @@ class Family(Resource):
 @api.route('/persons', endpoint='persons')
 class Persons(Resource):
     @api.marshal_with(person)
-    def get(self):
+    async def get(self, request):
         '''List all persons'''
         pass
 
     @api.marshal_with(person)
     @api.response(201, 'Person created')
-    def post(self):
+    async def post(self, request):
         '''Create a new person'''
         pass
 
@@ -64,7 +64,7 @@ class Persons(Resource):
 @api.response(404, 'Person not found')
 class Person(Resource):
     @api.marshal_with(person)
-    def get(self):
+    async def get(self, request):
         '''Get a person given its name'''
         pass
 

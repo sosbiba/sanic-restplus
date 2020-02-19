@@ -8,7 +8,7 @@ from os.path import join, dirname
 from jsonschema import validate
 #from werkzeug.datastructures import FileStorage
 
-import sanic_restplus as restplus
+from sanic_restplus import restplus
 
 from six.moves.urllib.parse import parse_qs, urlparse
 
@@ -19,7 +19,7 @@ with open(join(dirname(__file__), 'postman-v1.schema.json')) as f:
 
 class PostmanTest(object):
     def test_basic_export(self, app):
-        api = restplus.Api(app)
+        api = sanic_restplus.Api(app)
 
         data = api.as_postman()
 
@@ -28,7 +28,7 @@ class PostmanTest(object):
         assert len(data['requests']) == 0
 
     def test_export_infos(self, app):
-        api = restplus.Api(app, version='1.0',
+        api = sanic_restplus.Api(app, version='1.0',
             title='My API',
             description='This is a testing API',
         )
@@ -41,12 +41,12 @@ class PostmanTest(object):
         assert data['description'] == 'This is a testing API'
 
     def test_export_with_one_entry(self, app):
-        api = restplus.Api(app)
+        api = sanic_restplus.Api(app)
 
         @api.route('/test')
-        class Test(restplus.Resource):
+        class Test(sanic_restplus.Resource):
             @api.doc('test_post')
-            def post(self):
+            async def post(self, request):
                 '''A test post'''
                 pass
 
@@ -67,13 +67,13 @@ class PostmanTest(object):
         assert request['folder'] == folder['id']
 
     def test_export_with_namespace(self, app):
-        api = restplus.Api(app)
+        api = sanic_restplus.Api(app)
         ns = api.namespace('test', 'A test namespace')
 
         @ns.route('/test')
-        class Test(restplus.Resource):
+        class Test(sanic_restplus.Resource):
             @api.doc('test_post')
-            def post(self):
+            async def post(self, request):
                 '''A test post'''
                 pass
 
@@ -94,7 +94,7 @@ class PostmanTest(object):
         assert request['folder'] == folder['id']
 
     def test_id_is_the_same(self, app):
-        api = restplus.Api(app)
+        api = sanic_restplus.Api(app)
 
         first = api.as_postman()
 
@@ -104,25 +104,25 @@ class PostmanTest(object):
 
     def test_resources_order_in_folder(self, app):
         '''It should preserve resources order'''
-        api = restplus.Api(app)
+        api = sanic_restplus.Api(app)
         ns = api.namespace('test', 'A test namespace')
 
         @ns.route('/test1')
-        class Test1(restplus.Resource):
+        class Test1(sanic_restplus.Resource):
             @api.doc('test_post_z')
-            def post(self):
+            async def post(self, request):
                 pass
 
         @ns.route('/test2')
-        class Test2(restplus.Resource):
+        class Test2(sanic_restplus.Resource):
             @api.doc('test_post_y')
-            def post(self):
+            async def post(self, request):
                 pass
 
         @ns.route('/test3')
-        class Test3(restplus.Resource):
+        class Test3(sanic_restplus.Resource):
             @api.doc('test_post_x')
-            def post(self):
+            async def post(self, request):
                 pass
 
         data = api.as_postman()
@@ -143,12 +143,12 @@ class PostmanTest(object):
             assert request['name'] == expected
 
     def test_prefix_with_trailing_slash(self, app):
-        api = restplus.Api(app, prefix='/prefix/')
+        api = sanic_restplus.Api(app, prefix='/prefix/')
 
         @api.route('/test/')
-        class Test(restplus.Resource):
+        class Test(sanic_restplus.Resource):
             @api.doc('test_post')
-            def post(self):
+            async def post(self, request):
                 pass
 
         data = api.as_postman()
@@ -160,12 +160,12 @@ class PostmanTest(object):
         assert request['url'] == 'http://localhost/prefix/test/'
 
     def test_prefix_without_trailing_slash(self, app):
-        api = restplus.Api(app, prefix='/prefix')
+        api = sanic_restplus.Api(app, prefix='/prefix')
 
         @api.route('/test/')
-        class Test(restplus.Resource):
+        class Test(sanic_restplus.Resource):
             @api.doc('test_post')
-            def post(self):
+            async def post(self, request):
                 pass
 
         data = api.as_postman()
@@ -177,12 +177,12 @@ class PostmanTest(object):
         assert request['url'] == 'http://localhost/prefix/test/'
 
     def test_path_variables(self, app):
-        api = restplus.Api(app)
+        api = sanic_restplus.Api(app)
 
         @api.route('/test/<id>/<int:integer>/<float:number>/')
-        class Test(restplus.Resource):
+        class Test(sanic_restplus.Resource):
             @api.doc('test_post')
-            def post(self):
+            async def post(self, request):
                 pass
 
         data = api.as_postman()
@@ -199,7 +199,7 @@ class PostmanTest(object):
         }
 
     def test_url_variables_disabled(self, app):
-        api = restplus.Api(app)
+        api = sanic_restplus.Api(app)
 
         parser = api.parser()
         parser.add_argument('int', type=int)
@@ -207,9 +207,9 @@ class PostmanTest(object):
         parser.add_argument('str', type=str)
 
         @api.route('/test/')
-        class Test(restplus.Resource):
+        class Test(sanic_restplus.Resource):
             @api.expect(parser)
-            def get(self):
+            async def get(self, request):
                 pass
 
         data = api.as_postman()
@@ -221,7 +221,7 @@ class PostmanTest(object):
         assert request['url'] == 'http://localhost/test/'
 
     def test_url_variables_enabled(self, app):
-        api = restplus.Api(app)
+        api = sanic_restplus.Api(app)
 
         parser = api.parser()
         parser.add_argument('int', type=int)
@@ -229,9 +229,9 @@ class PostmanTest(object):
         parser.add_argument('str', type=str)
 
         @api.route('/test/')
-        class Test(restplus.Resource):
+        class Test(sanic_restplus.Resource):
             @api.expect(parser)
-            def get(self):
+            async def get(self, request):
                 pass
 
         data = api.as_postman(urlvars=True)
@@ -252,17 +252,17 @@ class PostmanTest(object):
         assert qs['str'][0] == ''
 
     def test_headers(self, app):
-        api = restplus.Api(app)
+        api = sanic_restplus.Api(app)
 
         parser = api.parser()
         parser.add_argument('X-Header-1', location='headers', default='xxx')
         parser.add_argument('X-Header-2', location='headers', required=True)
 
         @api.route('/headers/')
-        class TestHeaders(restplus.Resource):
+        class TestHeaders(sanic_restplus.Resource):
             @api.doc('headers')
             @api.expect(parser)
-            def get(self):
+            async def get(self, request):
                 pass
 
         data = api.as_postman(urlvars=True)
@@ -275,7 +275,7 @@ class PostmanTest(object):
         assert headers['X-Header-2'] == ''
 
     def test_content_type_header(self, app):
-        api = restplus.Api(app)
+        api = sanic_restplus.Api(app)
         form_parser = api.parser()
         form_parser.add_argument('param', type=int, help='Some param', location='form')
 
@@ -284,29 +284,29 @@ class PostmanTest(object):
         #file_parser.add_argument('in_files', type=FileStorage, location='files')
 
         @api.route('/json/')
-        class TestJson(restplus.Resource):
+        class TestJson(sanic_restplus.Resource):
             @api.doc('json')
-            def post(self):
+            async def post(self, request):
                 pass
 
         @api.route('/form/')
-        class TestForm(restplus.Resource):
+        class TestForm(sanic_restplus.Resource):
             @api.doc('form')
             @api.expect(form_parser)
-            def post(self):
+            async def post(self, request):
                 pass
 
         @api.route('/file/')
-        class TestFile(restplus.Resource):
+        class TestFile(sanic_restplus.Resource):
             @api.doc('file')
             @api.expect(file_parser)
-            def post(self):
+            async def post(self, request):
                 pass
 
         @api.route('/get/')
-        class TestGet(restplus.Resource):
+        class TestGet(sanic_restplus.Resource):
             @api.doc('get')
-            def get(self):
+            async def get(self, request):
                 pass
 
         data = api.as_postman(urlvars=True)
@@ -322,7 +322,7 @@ class PostmanTest(object):
         assert requests['get'] == ''
 
     def test_method_security_headers(self, app):
-        api = restplus.Api(app, authorizations={
+        api = sanic_restplus.Api(app, authorizations={
             'apikey': {
                 'type': 'apiKey',
                 'in': 'header',
@@ -331,15 +331,15 @@ class PostmanTest(object):
         })
 
         @api.route('/secure/')
-        class Secure(restplus.Resource):
+        class Secure(sanic_restplus.Resource):
             @api.doc('secure', security='apikey')
-            def get(self):
+            async def get(self, request):
                 pass
 
         @api.route('/unsecure/')
-        class Unsecure(restplus.Resource):
+        class Unsecure(sanic_restplus.Resource):
             @api.doc('unsecure')
-            def get(self):
+            async def get(self, request):
                 pass
 
         data = api.as_postman()
@@ -351,7 +351,7 @@ class PostmanTest(object):
         assert requests['secure'] == 'X-API:'
 
     def test_global_security_headers(self, app):
-        api = restplus.Api(app, security='apikey', authorizations={
+        api = sanic_restplus.Api(app, security='apikey', authorizations={
             'apikey': {
                 'type': 'apiKey',
                 'in': 'header',
@@ -360,8 +360,8 @@ class PostmanTest(object):
         })
 
         @api.route('/test/')
-        class Test(restplus.Resource):
-            def get(self):
+        class Test(sanic_restplus.Resource):
+            async def get(self, request):
                 pass
 
         data = api.as_postman()
@@ -373,7 +373,7 @@ class PostmanTest(object):
         assert headers['X-API'] == ''
 
     def test_oauth_security_headers(self, app):
-        api = restplus.Api(app, security='oauth', authorizations={
+        api = sanic_restplus.Api(app, security='oauth', authorizations={
             'oauth': {
                 'type': 'oauth2',
                 'authorizationUrl': 'https://somewhere.com/oauth/authorize',
@@ -386,8 +386,8 @@ class PostmanTest(object):
         })
 
         @api.route('/test/')
-        class Test(restplus.Resource):
-            def get(self):
+        class Test(sanic_restplus.Resource):
+            async def get(self, request):
                 pass
 
         data = api.as_postman()
@@ -399,7 +399,7 @@ class PostmanTest(object):
         # assert headers['X-API'] == ''
 
     def test_export_with_swagger(self, app):
-        api = restplus.Api(app)
+        api = sanic_restplus.Api(app)
 
         data = api.as_postman(swagger=True)
 

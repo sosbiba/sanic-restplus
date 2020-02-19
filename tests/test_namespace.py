@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-import sanic_restplus as restplus
+from sanic_restplus import restplus
 
 from sanic_restplus import Namespace, Model, OrderedModel
 
@@ -16,7 +16,7 @@ class NamespaceTest(object):
         params = {'q': {'description': 'some description'}}
 
         @api.doc(params=params)
-        class TestResource(restplus.Resource):
+        class TestResource(sanic_restplus.Resource):
             pass
 
         assert hasattr(TestResource, '__apidoc__')
@@ -28,7 +28,7 @@ class NamespaceTest(object):
         child_params = {'q': {'description': 'some new description'}, 'other': {'description': 'another param'}}
 
         @api.doc(params=base_params)
-        class BaseResource(restplus.Resource):
+        class BaseResource(sanic_restplus.Resource):
             pass
 
         @api.doc(params=child_params)
@@ -106,7 +106,7 @@ class NamespaceTest(object):
         assert 'Child' in api.models
 
     def test_api_payload(self, app, client):
-        api = restplus.Api(app, validate=True)
+        api = sanic_restplus.Api(app, validate=True)
         ns = restplus.Namespace('apples')
         api.add_namespace(ns)
 
@@ -117,11 +117,11 @@ class NamespaceTest(object):
         })
 
         @ns.route('/validation/')
-        class Payload(restplus.Resource):
+        class Payload(sanic_restplus.Resource):
             payload = None
 
             @ns.expect(fields)
-            def post(self):
+            async def post(self, request):
                 Payload.payload = ns.payload
                 return {}
 

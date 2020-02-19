@@ -5,12 +5,9 @@ import pytest
 
 from textwrap import dedent
 
-from flask import url_for, Blueprint
-from werkzeug.datastructures import FileStorage
-
-import sanic_restplus as restplus
-
-from sanic_restplus import inputs
+from sanic import Blueprint
+import sanic_restplus
+from sanic_restplus import restplus, inputs
 
 
 class SwaggerTest(object):
@@ -45,7 +42,7 @@ class SwaggerTest(object):
         assert 'application/xml' in data['produces']
 
     def test_specs_endpoint_info(self, app, client):
-        api = restplus.Api(version='1.0',
+        api = sanic_restplus.Api(version='1.0',
             title='My API',
             description='This is a testing API',
             terms_url='http://somewhere.com/terms/',
@@ -79,7 +76,7 @@ class SwaggerTest(object):
         }
 
     def test_specs_endpoint_info_delayed(self, app, client):
-        api = restplus.Api(version='1.0')
+        api = sanic_restplus.Api(version='1.0')
         api.init_app(app,
             title='My API',
             description='This is a testing API',
@@ -114,7 +111,7 @@ class SwaggerTest(object):
         }
 
     def test_specs_endpoint_info_callable(self, app, client):
-        api = restplus.Api(version=lambda: '1.0',
+        api = sanic_restplus.Api(version=lambda: '1.0',
             title=lambda: 'My API',
             description=lambda: 'This is a testing API',
             terms_url=lambda: 'http://somewhere.com/terms/',
@@ -148,7 +145,7 @@ class SwaggerTest(object):
         }
 
     def test_specs_endpoint_no_host(self, app, client):
-        restplus.Api(app)
+        sanic_restplus.Api(app)
 
         data = client.get_specs('')
         assert 'host' not in data
@@ -157,7 +154,7 @@ class SwaggerTest(object):
     @pytest.mark.options(server_name='api.restplus.org')
     def test_specs_endpoint_host(self, app, client):
         # app.config['SERVER_NAME'] = 'api.restplus.org'
-        restplus.Api(app)
+        sanic_restplus.Api(app)
 
         data = client.get_specs('')
         assert data['host'] == 'api.restplus.org'
@@ -166,7 +163,7 @@ class SwaggerTest(object):
     @pytest.mark.options(server_name='api.restplus.org')
     def test_specs_endpoint_host_with_url_prefix(self, app, client):
         blueprint = Blueprint('api', __name__, url_prefix='/api/1')
-        restplus.Api(blueprint)
+        sanic_restplus.Api(blueprint)
         app.register_blueprint(blueprint)
 
         data = client.get_specs('/api/1')
@@ -176,7 +173,7 @@ class SwaggerTest(object):
     @pytest.mark.options(server_name='restplus.org')
     def test_specs_endpoint_host_and_subdomain(self, app, client):
         blueprint = Blueprint('api', __name__, subdomain='api')
-        restplus.Api(blueprint)
+        sanic_restplus.Api(blueprint)
         app.register_blueprint(blueprint)
 
         data = client.get_specs(base_url='http://api.restplus.org')
@@ -184,7 +181,7 @@ class SwaggerTest(object):
         assert data['basePath'] == '/'
 
     def test_specs_endpoint_tags_short(self, app, client):
-        restplus.Api(app, tags=['tag-1', 'tag-2', 'tag-3'])
+        sanic_restplus.Api(app, tags=['tag-1', 'tag-2', 'tag-3'])
 
         data = client.get_specs('')
         assert data['tags'] == [
@@ -194,7 +191,7 @@ class SwaggerTest(object):
         ]
 
     def test_specs_endpoint_tags_tuple(self, app, client):
-        restplus.Api(app, tags=[
+        sanic_restplus.Api(app, tags=[
             ('tag-1', 'Tag 1'),
             ('tag-2', 'Tag 2'),
             ('tag-3', 'Tag 3'),
@@ -208,7 +205,7 @@ class SwaggerTest(object):
         ]
 
     def test_specs_endpoint_tags_dict(self, app, client):
-        restplus.Api(app, tags=[
+        sanic_restplus.Api(app, tags=[
             {'name': 'tag-1', 'description': 'Tag 1'},
             {'name': 'tag-2', 'description': 'Tag 2'},
             {'name': 'tag-3', 'description': 'Tag 3'},
@@ -229,7 +226,7 @@ class SwaggerTest(object):
         assert data['tags'] == [{'name': 'ns'}, {'name': 'tag'}]
 
     def test_specs_endpoint_invalid_tags(self, app, client):
-        api = restplus.Api(app, tags=[
+        api = sanic_restplus.Api(app, tags=[
             {'description': 'Tag 1'}
         ])
 
@@ -238,16 +235,16 @@ class SwaggerTest(object):
         assert list(api.__schema__.keys()) == ['error']
 
     def test_specs_endpoint_default_ns_with_resources(self, app, client):
-        restplus.Api(app)
+        sanic_restplus.Api(app)
         data = client.get_specs('')
         assert data['tags'] == []
 
     def test_specs_endpoint_default_ns_without_resources(self, app, client):
-        api = restplus.Api(app)
+        api = sanic_restplus.Api(app)
 
         @api.route('/test', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs('')
@@ -256,13 +253,13 @@ class SwaggerTest(object):
         ]
 
     def test_specs_endpoint_default_ns_with_specified_ns(self, app, client):
-        api = restplus.Api(app)
+        api = sanic_restplus.Api(app)
         ns = api.namespace('ns', 'Test namespace')
 
         @ns.route('/test2', endpoint='test2')
         @api.route('/test', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs('')
@@ -272,12 +269,12 @@ class SwaggerTest(object):
         ]
 
     def test_specs_endpoint_specified_ns_without_default_ns(self, app, client):
-        api = restplus.Api(app)
+        api = sanic_restplus.Api(app)
         ns = api.namespace('ns', 'Test namespace')
 
         @ns.route('/', endpoint='test2')
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs('')
@@ -286,36 +283,36 @@ class SwaggerTest(object):
         ]
 
     def test_specs_endpoint_namespace_without_description(self, app, client):
-        api = restplus.Api(app)
+        api = sanic_restplus.Api(app)
         ns = api.namespace('ns')
 
         @ns.route('/test', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs('')
         assert data['tags'] == [{'name': 'ns'}]
 
     def test_specs_endpoint_namespace_all_resources_hidden(self, app, client):
-        api = restplus.Api(app)
+        api = sanic_restplus.Api(app)
         ns = api.namespace('ns')
 
         @ns.route('/test', endpoint='test', doc=False)
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 return {}
 
         @ns.route('/test2', endpoint='test2')
         @ns.hide
-        class TestResource2(restplus.Resource):
-            def get(self):
+        class TestResource2(sanic_restplus.Resource):
+            async def get(self, request):
                 return {}
 
         @ns.route('/test3', endpoint='test3')
         @ns.doc(False)
-        class TestResource3(restplus.Resource):
-            def get(self):
+        class TestResource3(sanic_restplus.Resource):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs('')
@@ -329,7 +326,7 @@ class SwaggerTest(object):
                 'name': 'X-API'
             }
         }
-        restplus.Api(app, authorizations=authorizations)
+        sanic_restplus.Api(app, authorizations=authorizations)
 
         data = client.get_specs()
 
@@ -341,8 +338,8 @@ class SwaggerTest(object):
         ns = api.namespace('ns', 'Test namespace')
 
         @ns.route('/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs('/api')
@@ -368,8 +365,8 @@ class SwaggerTest(object):
     @pytest.mark.api(prefix='/api', version='1.0')
     def test_default_ns_resource_documentation(self, api, client):
         @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs('/api')
@@ -396,8 +393,8 @@ class SwaggerTest(object):
     @pytest.mark.api(default='site', default_label='Site namespace')
     def test_default_ns_resource_documentation_with_override(self, api, client):
         @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -426,8 +423,8 @@ class SwaggerTest(object):
         ns = api.namespace('ns', 'Test namespace')
 
         @ns.route('/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs('/api')
@@ -453,12 +450,12 @@ class SwaggerTest(object):
         assert url_for('api.test') == '/api/ns/'
 
     def test_ns_resource_documentation_lazy(self, app, client):
-        api = restplus.Api()
+        api = sanic_restplus.Api()
         ns = api.namespace('ns', 'Test namespace')
 
         @ns.route('/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 return {}
 
         api.init_app(app)
@@ -486,14 +483,14 @@ class SwaggerTest(object):
 
     def test_methods_docstring_to_summary(self, api, client):
         @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 '''
                 GET operation
                 '''
                 return {}
 
-            def post(self):
+            async def post(self, request):
                 '''POST operation.
 
                 Should be ignored
@@ -525,7 +522,7 @@ class SwaggerTest(object):
 
     def test_path_parameter_no_type(self, api, client):
         @api.route('/id/<id>/', endpoint='by-id')
-        class ByIdResource(restplus.Resource):
+        class ByIdResource(sanic_restplus.Resource):
             def get(self, id):
                 return {}
 
@@ -543,7 +540,7 @@ class SwaggerTest(object):
 
     def test_path_parameter_with_type(self, api, client):
         @api.route('/name/<int:age>/', endpoint='by-name')
-        class ByNameResource(restplus.Resource):
+        class ByNameResource(sanic_restplus.Resource):
             def get(self, age):
                 return {}
 
@@ -561,7 +558,7 @@ class SwaggerTest(object):
 
     def test_path_parameter_with_type_with_argument(self, api, client):
         @api.route('/name/<string(length=2):id>/', endpoint='by-name')
-        class ByNameResource(restplus.Resource):
+        class ByNameResource(sanic_restplus.Resource):
             def get(self, id):
                 return {}
 
@@ -583,7 +580,7 @@ class SwaggerTest(object):
                 'age': {'description': 'An age'}
             }
         })
-        class ByNameResource(restplus.Resource):
+        class ByNameResource(sanic_restplus.Resource):
             def get(self, age):
                 return {}
 
@@ -603,7 +600,7 @@ class SwaggerTest(object):
     def test_path_parameter_with_decorator_details(self, api, client):
         @api.route('/name/<int:age>/')
         @api.param('age', 'An age')
-        class ByNameResource(restplus.Resource):
+        class ByNameResource(sanic_restplus.Resource):
             def get(self, age):
                 return {}
 
@@ -625,9 +622,9 @@ class SwaggerTest(object):
         parser.add_argument('param', type=int, help='Some param')
 
         @api.route('/with-parser/', endpoint='with-parser')
-        class WithParserResource(restplus.Resource):
+        class WithParserResource(sanic_restplus.Resource):
             @api.expect(parser)
-            def get(self):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -648,8 +645,8 @@ class SwaggerTest(object):
 
         @api.route('/with-parser/', endpoint='with-parser')
         @api.expect(parser)
-        class WithParserResource(restplus.Resource):
-            def get(self):
+        class WithParserResource(sanic_restplus.Resource):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -670,11 +667,11 @@ class SwaggerTest(object):
 
         @api.route('/with-parser/', endpoint='with-parser')
         @api.doc(get={'expect': parser})
-        class WithParserResource(restplus.Resource):
-            def get(self):
+        class WithParserResource(sanic_restplus.Resource):
+            async def get(self, request):
                 return {}
 
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -697,10 +694,10 @@ class SwaggerTest(object):
         parser.add_argument('param', type=int, help='Some param')
 
         @api.route('/with-parser/', endpoint='with-parser')
-        class WithParserResource(restplus.Resource):
+        class WithParserResource(sanic_restplus.Resource):
             @api.expect(parser)
             @api.doc(params={'param': {'description': 'New description'}})
-            def get(self):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -720,9 +717,9 @@ class SwaggerTest(object):
         parser.add_argument('param', type=int, help='Some param', location='form')
 
         @api.route('/with-parser/', endpoint='with-parser')
-        class WithParserResource(restplus.Resource):
+        class WithParserResource(sanic_restplus.Resource):
             @api.expect(parser)
-            def get(self):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -744,9 +741,9 @@ class SwaggerTest(object):
         parser.add_argument('in_files', type=FileStorage, location='files')
 
         @api.route('/with-parser/', endpoint='with-parser')
-        class WithParserResource(restplus.Resource):
+        class WithParserResource(sanic_restplus.Resource):
             @api.expect(parser)
-            def get(self):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -768,8 +765,8 @@ class SwaggerTest(object):
 
         @api.route('/with-parser/', endpoint='with-parser')
         @api.expect(parser)
-        class WithParserResource(restplus.Resource):
-            def get(self):
+        class WithParserResource(sanic_restplus.Resource):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -791,7 +788,7 @@ class SwaggerTest(object):
 
     def test_explicit_parameters(self, api, client):
         @api.route('/name/<int:age>/', endpoint='by-name')
-        class ByNameResource(restplus.Resource):
+        class ByNameResource(sanic_restplus.Resource):
             @api.doc(params={
                 'q': {
                     'type': 'string',
@@ -825,7 +822,7 @@ class SwaggerTest(object):
 
     def test_explicit_parameters_with_decorator(self, api, client):
         @api.route('/name/')
-        class ByNameResource(restplus.Resource):
+        class ByNameResource(sanic_restplus.Resource):
             @api.param('q', 'A query string', type='string', _in='formData')
             def get(self, age):
                 return {}
@@ -852,7 +849,7 @@ class SwaggerTest(object):
                 }
             }
         })
-        class ByNameResource(restplus.Resource):
+        class ByNameResource(sanic_restplus.Resource):
             def get(self, age):
                 return {}
 
@@ -889,7 +886,7 @@ class SwaggerTest(object):
                 }
             }
         })
-        class ByNameResource(restplus.Resource):
+        class ByNameResource(sanic_restplus.Resource):
             @api.doc(params={'q': {'description': 'A query string'}})
             def get(self, age):
                 return {}
@@ -950,7 +947,7 @@ class SwaggerTest(object):
                 }
             }
         })
-        class ByNameResource(restplus.Resource):
+        class ByNameResource(sanic_restplus.Resource):
             @api.doc(params={'age': {'description': 'Overriden'}})
             def get(self, age):
                 return {}
@@ -1011,7 +1008,7 @@ class SwaggerTest(object):
                 }
             }
         })
-        class ByNameResource(restplus.Resource):
+        class ByNameResource(sanic_restplus.Resource):
             @api.doc(params={'age': {'description': 'Overriden'}})
             def get(self, age):
                 return {}
@@ -1046,7 +1043,7 @@ class SwaggerTest(object):
                 'age': 'An age'
             }
         })
-        class ByNameResource(restplus.Resource):
+        class ByNameResource(sanic_restplus.Resource):
             @api.doc(params={'age': 'Overriden'})
             def get(self, age):
                 return {}
@@ -1094,7 +1091,7 @@ class SwaggerTest(object):
 
     def test_explicit_parameters_native_types(self, api, client):
         @api.route('/types/', endpoint='native')
-        class NativeTypesResource(restplus.Resource):
+        class NativeTypesResource(sanic_restplus.Resource):
             @api.doc(params={
                 'int': {
                     'type': int,
@@ -1158,12 +1155,12 @@ class SwaggerTest(object):
         })
 
         @api.route('/test/')
-        class ByNameResource(restplus.Resource):
+        class ByNameResource(sanic_restplus.Resource):
             @api.doc(responses={
                 404: 'Not found',
                 405: ('Some message', 'ErrorModel'),
             })
-            def get(self):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs('')
@@ -1189,10 +1186,10 @@ class SwaggerTest(object):
 
     def test_api_response(self, api, client):
         @api.route('/test/')
-        class TestResource(restplus.Resource):
+        class TestResource(sanic_restplus.Resource):
 
             @api.response(200, 'Success')
-            def get(self):
+            async def get(self, request):
                 pass
 
         data = client.get_specs('')
@@ -1207,11 +1204,11 @@ class SwaggerTest(object):
 
     def test_api_response_multiple(self, api, client):
         @api.route('/test/')
-        class TestResource(restplus.Resource):
+        class TestResource(sanic_restplus.Resource):
 
             @api.response(200, 'Success')
             @api.response(400, 'Validation error')
-            def get(self):
+            async def get(self, request):
                 pass
 
         data = client.get_specs('')
@@ -1233,10 +1230,10 @@ class SwaggerTest(object):
         })
 
         @api.route('/test/')
-        class TestResource(restplus.Resource):
+        class TestResource(sanic_restplus.Resource):
 
             @api.response(200, 'Success', model)
-            def get(self):
+            async def get(self, request):
                 pass
 
         data = client.get_specs('')
@@ -1256,10 +1253,10 @@ class SwaggerTest(object):
 
     def test_api_response_default(self, api, client):
         @api.route('/test/')
-        class TestResource(restplus.Resource):
+        class TestResource(sanic_restplus.Resource):
 
             @api.response('default', 'Error')
-            def get(self):
+            async def get(self, request):
                 pass
 
         data = client.get_specs('')
@@ -1275,12 +1272,12 @@ class SwaggerTest(object):
     def test_api_header(self, api, client):
         @api.route('/test/')
         @api.header('X-HEADER', 'A class header')
-        class TestResource(restplus.Resource):
+        class TestResource(sanic_restplus.Resource):
 
             @api.header('X-HEADER-2', 'Another header', type=[int], collectionFormat='csv')
             @api.header('X-HEADER-3', type=int)
             @api.header('X-HEADER-4', type='boolean')
-            def get(self):
+            async def get(self, request):
                 pass
 
         data = client.get_specs('')
@@ -1308,10 +1305,10 @@ class SwaggerTest(object):
 
     def test_response_header(self, api, client):
         @api.route('/test/')
-        class TestResource(restplus.Resource):
+        class TestResource(sanic_restplus.Resource):
             @api.response(200, 'Success')
             @api.response(400, 'Validation', headers={'X-HEADER': 'An header'})
-            def get(self):
+            async def get(self, request):
                 pass
 
         data = client.get_specs('')
@@ -1326,12 +1323,12 @@ class SwaggerTest(object):
     def test_api_and_response_header(self, api, client):
         @api.route('/test/')
         @api.header('X-HEADER', 'A class header')
-        class TestResource(restplus.Resource):
+        class TestResource(sanic_restplus.Resource):
 
             @api.header('X-HEADER-2', type=int)
             @api.response(200, 'Success')
             @api.response(400, 'Validation', headers={'X-ERROR': 'An error header'})
-            def get(self):
+            async def get(self, request):
                 pass
 
         data = client.get_specs('')
@@ -1353,10 +1350,10 @@ class SwaggerTest(object):
         parser.add_argument('X-Header-4', location='headers', type=inputs.boolean)
 
         @api.route('/test/')
-        class TestResource(restplus.Resource):
+        class TestResource(sanic_restplus.Resource):
 
             @api.expect(parser)
-            def get(self):
+            async def get(self, request):
                 pass
 
         data = client.get_specs('')
@@ -1393,12 +1390,12 @@ class SwaggerTest(object):
             'description': 'Parent description.',
             'delete': {'description': 'A delete operation'},
         })
-        class ResourceWithDescription(restplus.Resource):
+        class ResourceWithDescription(sanic_restplus.Resource):
             @api.doc(description='Some details')
-            def get(self):
+            async def get(self, request):
                 return {}
 
-            def post(self):
+            async def post(self, request):
                 '''
                 Do something.
 
@@ -1413,8 +1410,8 @@ class SwaggerTest(object):
                 '''No description (only summary)'''
 
         @api.route('/descriptionless/', endpoint='descriptionless')
-        class ResourceWithoutDescription(restplus.Resource):
-            def get(self):
+        class ResourceWithoutDescription(sanic_restplus.Resource):
+            async def get(self, request):
                 '''No description (only summary)'''
                 return {}
 
@@ -1442,12 +1439,12 @@ class SwaggerTest(object):
 
     def test_operation_id(self, api, client):
         @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
+        class TestResource(sanic_restplus.Resource):
             @api.doc(id='get_objects')
-            def get(self):
+            async def get(self, request):
                 return {}
 
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -1458,9 +1455,9 @@ class SwaggerTest(object):
 
     def test_operation_id_shortcut(self, api, client):
         @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
+        class TestResource(sanic_restplus.Resource):
             @api.doc('get_objects')
-            def get(self):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -1472,15 +1469,15 @@ class SwaggerTest(object):
         def default_id(resource, method):
             return '{0}{1}'.format(method, resource)
 
-        api = restplus.Api(app, default_id=default_id)
+        api = sanic_restplus.Api(app, default_id=default_id)
 
         @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
+        class TestResource(sanic_restplus.Resource):
             @api.doc(id='get_objects')
-            def get(self):
+            async def get(self, request):
                 return {}
 
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -1492,12 +1489,12 @@ class SwaggerTest(object):
     @pytest.mark.api(default_id=lambda r, m: '{0}{1}'.format(m, r))
     def test_custom_default_operation_id_blueprint(self, api, client):
         @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
+        class TestResource(sanic_restplus.Resource):
             @api.doc(id='get_objects')
-            def get(self):
+            async def get(self, request):
                 return {}
 
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -1508,9 +1505,9 @@ class SwaggerTest(object):
 
     def test_model_primitive_types(self, api, client):
         @api.route('/model-int/')
-        class ModelInt(restplus.Resource):
+        class ModelInt(sanic_restplus.Resource):
             @api.doc(model=int)
-            def get(self):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -1533,13 +1530,13 @@ class SwaggerTest(object):
         })
 
         @api.route('/model-as-dict/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.doc(model=fields)
-            def get(self):
+            async def get(self, request):
                 return {}
 
             @api.doc(model='Person')
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -1561,13 +1558,13 @@ class SwaggerTest(object):
         })
 
         @api.route('/model-as-dict/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.doc(model=fields)
-            def get(self):
+            async def get(self, request):
                 return {}
 
             @api.doc(model='Person')
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -1607,13 +1604,13 @@ class SwaggerTest(object):
         })
 
         @api.route('/model-as-dict/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.doc(model=fields)
-            def get(self):
+            async def get(self, request):
                 return {}
 
             @api.doc(model='Person')
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -1649,9 +1646,9 @@ class SwaggerTest(object):
         })
 
         @api.route('/model-as-dict/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.marshal_with(fields)
-            def get(self):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -1677,7 +1674,7 @@ class SwaggerTest(object):
         })
 
         @api.route('/model-as-dict/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.marshal_with(fields, code=204)
             def delete(self):
                 return {}
@@ -1705,9 +1702,9 @@ class SwaggerTest(object):
         })
 
         @api.route('/model-as-dict/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.marshal_with(person, description='Some details')
-            def get(self):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -1733,9 +1730,9 @@ class SwaggerTest(object):
         })
 
         @api.route('/model-as-dict/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.marshal_with(fields, as_list=True)
-            def get(self):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -1772,9 +1769,9 @@ class SwaggerTest(object):
         })
 
         @api.route('/model-as-dict/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.marshal_list_with(fields)
-            def get(self):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -1796,9 +1793,9 @@ class SwaggerTest(object):
         })
 
         @api.route('/model-as-dict/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.marshal_list_with(fields, code=201, description='Some details')
-            def get(self):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -1825,9 +1822,9 @@ class SwaggerTest(object):
         })
 
         @api.route('/model-with-list/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.doc(model=fields)
-            def get(self):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -1868,9 +1865,9 @@ class SwaggerTest(object):
         })
 
         @api.route('/model-with-list/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.doc(model=person)
-            def get(self):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -1881,13 +1878,13 @@ class SwaggerTest(object):
 
     def test_model_list_of_primitive_types(self, api, client):
         @api.route('/model-list/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.doc(model=[int])
-            def get(self):
+            async def get(self, request):
                 return {}
 
             @api.doc(model=[str])
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -1912,13 +1909,13 @@ class SwaggerTest(object):
         })
 
         @api.route('/model-as-dict/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.doc(model=[fields])
-            def get(self):
+            async def get(self, request):
                 return {}
 
             @api.doc(model=['Person'])
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -1942,11 +1939,11 @@ class SwaggerTest(object):
 
         @api.route('/model-as-dict/')
         @api.doc(model=fields)
-        class ModelAsDict(restplus.Resource):
-            def get(self):
+        class ModelAsDict(sanic_restplus.Resource):
+            async def get(self, request):
                 return {}
 
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -1966,11 +1963,11 @@ class SwaggerTest(object):
 
         @api.route('/model-as-dict/')
         @api.doc(get={'model': fields})
-        class ModelAsDict(restplus.Resource):
-            def get(self):
+        class ModelAsDict(sanic_restplus.Resource):
+            async def get(self, request):
                 return {}
 
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -1988,9 +1985,9 @@ class SwaggerTest(object):
         })
 
         @api.route('/model-with-discriminator/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.marshal_with(fields)
-            def get(self):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -2014,9 +2011,9 @@ class SwaggerTest(object):
         })
 
         @api.route('/model-with-discriminator/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.marshal_with(fields)
-            def get(self):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -2035,9 +2032,9 @@ class SwaggerTest(object):
 
     def test_model_not_found(self, api, client):
         @api.route('/model-not-found/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.doc(model='NotFound')
-            def get(self):
+            async def get(self, request):
                 return {}
 
         client.get_specs(status=500)
@@ -2054,13 +2051,13 @@ class SwaggerTest(object):
         })
 
         @api.route('/extend/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.doc(model=child)
-            def get(self):
+            async def get(self, request):
                 return {}
 
             @api.doc(model='Child')
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -2084,9 +2081,9 @@ class SwaggerTest(object):
         })
 
         @api.route('/inherit/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.marshal_with(child)
-            def get(self):
+            async def get(self, request):
                 return {
                     'name': 'John',
                     'age': 42,
@@ -2094,7 +2091,7 @@ class SwaggerTest(object):
                 }
 
             @api.doc(model='Child')
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -2147,9 +2144,9 @@ class SwaggerTest(object):
         })
 
         @api.route('/inherit/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.marshal_with(output)
-            def get(self):
+            async def get(self, request):
                 return {
                     'child': {
                         'name': 'John',
@@ -2221,9 +2218,9 @@ class SwaggerTest(object):
         })
 
         @api.route('/polymorph/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.marshal_with(output)
-            def get(self):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -2268,9 +2265,9 @@ class SwaggerTest(object):
         })
 
         @api.route('/polymorph/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.marshal_with(output)
-            def get(self):
+            async def get(self, request):
                 return {
                     'children': [Child1(), Child2()]
                 }
@@ -2305,9 +2302,9 @@ class SwaggerTest(object):
         })
 
         @api.route('/model-as-dict/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.expect(person)
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -2352,10 +2349,10 @@ class SwaggerTest(object):
         })
 
         @api.route('/model-as-dict/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.doc(model='Person')
             @api.expect(fields)
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -2402,9 +2399,9 @@ class SwaggerTest(object):
         })
 
         @api.route('/model-list/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.expect([model])
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -2451,9 +2448,9 @@ class SwaggerTest(object):
         })
 
         @api.route('/with-parser/', endpoint='with-parser')
-        class WithParserResource(restplus.Resource):
+        class WithParserResource(sanic_restplus.Resource):
             @api.expect(parser, person)
-            def get(self):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -2501,9 +2498,9 @@ class SwaggerTest(object):
 
     def test_expect_primitive_list(self, api, client):
         @api.route('/model-list/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.expect([restplus.fields.String])
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -2528,9 +2525,9 @@ class SwaggerTest(object):
         })
 
         @api.route('/model-list/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.expect([fields])
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -2574,9 +2571,9 @@ class SwaggerTest(object):
         })
 
         @api.route('/model-as-dict/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.expect((person, 'Body description'))
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -2615,7 +2612,7 @@ class SwaggerTest(object):
         }
 
     def test_authorizations(self, app, client):
-        restplus.Api(app, authorizations={
+        sanic_restplus.Api(app, authorizations={
             'apikey': {
                 'type': 'apiKey',
                 'in': 'header',
@@ -2624,11 +2621,11 @@ class SwaggerTest(object):
         })
 
         # @api.route('/authorizations/')
-        # class ModelAsDict(restplus.Resource):
-        #     def get(self):
+        # class ModelAsDict(sanic_restplus.Resource):
+        #     async def get(self, request):
         #         return {}
 
-        #     def post(self):
+        #     async def post(self, request):
         #         return {}
 
         data = client.get_specs()
@@ -2640,7 +2637,7 @@ class SwaggerTest(object):
         # assert path['post']['security'] == {'apikey': []}
 
     def test_single_root_security_string(self, app, client):
-        api = restplus.Api(app, security='apikey', authorizations={
+        api = sanic_restplus.Api(app, security='apikey', authorizations={
             'apikey': {
                 'type': 'apiKey',
                 'in': 'header',
@@ -2649,8 +2646,8 @@ class SwaggerTest(object):
         })
 
         @api.route('/authorizations/')
-        class ModelAsDict(restplus.Resource):
-            def post(self):
+        class ModelAsDict(sanic_restplus.Resource):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -2688,7 +2685,7 @@ class SwaggerTest(object):
             }
         }
 
-        api = restplus.Api(app,
+        api = sanic_restplus.Api(app,
             security={
                 'oauth2': 'read',
                 'implicit': ['read', 'write']
@@ -2697,8 +2694,8 @@ class SwaggerTest(object):
         )
 
         @api.route('/authorizations/')
-        class ModelAsDict(restplus.Resource):
-            def post(self):
+        class ModelAsDict(sanic_restplus.Resource):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -2728,11 +2725,11 @@ class SwaggerTest(object):
                 }
             }
         }
-        api = restplus.Api(app, security=['apikey', {'oauth2': 'read'}], authorizations=security_definitions)
+        api = sanic_restplus.Api(app, security=['apikey', {'oauth2': 'read'}], authorizations=security_definitions)
 
         @api.route('/authorizations/')
-        class ModelAsDict(restplus.Resource):
-            def post(self):
+        class ModelAsDict(sanic_restplus.Resource):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -2743,7 +2740,7 @@ class SwaggerTest(object):
         assert 'security' not in op
 
     def test_method_security(self, app, client):
-        api = restplus.Api(app, authorizations={
+        api = sanic_restplus.Api(app, authorizations={
             'apikey': {
                 'type': 'apiKey',
                 'in': 'header',
@@ -2752,13 +2749,13 @@ class SwaggerTest(object):
         })
 
         @api.route('/authorizations/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.doc(security=['apikey'])
-            def get(self):
+            async def get(self, request):
                 return {}
 
             @api.doc(security='apikey')
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -2792,12 +2789,12 @@ class SwaggerTest(object):
                 }
             }
         }
-        api = restplus.Api(app, security=['apikey', {'oauth2': 'read'}], authorizations=security_definitions)
+        api = sanic_restplus.Api(app, security=['apikey', {'oauth2': 'read'}], authorizations=security_definitions)
 
         @api.route('/authorizations/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.doc(security=[{'oauth2': ['read', 'write']}])
-            def get(self):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -2823,16 +2820,16 @@ class SwaggerTest(object):
                 }
             }
         }
-        api = restplus.Api(app, security=['apikey', {'oauth2': 'read'}], authorizations=security_definitions)
+        api = sanic_restplus.Api(app, security=['apikey', {'oauth2': 'read'}], authorizations=security_definitions)
 
         @api.route('/authorizations/')
-        class ModelAsDict(restplus.Resource):
+        class ModelAsDict(sanic_restplus.Resource):
             @api.doc(security=[])
-            def get(self):
+            async def get(self, request):
                 return {}
 
             @api.doc(security=None)
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.get_specs()
@@ -2842,10 +2839,10 @@ class SwaggerTest(object):
         for method in 'get', 'post':
             assert path[method]['security'] == []
 
-    def test_hidden_resource(self, api, client):
+    async def test_hidden_resource(self, api, client):
         @api.route('/test/', endpoint='test', doc=False)
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 '''
                 GET operation
                 '''
@@ -2853,8 +2850,8 @@ class SwaggerTest(object):
 
         @api.hide
         @api.route('/test2/', endpoint='test2')
-        class TestResource2(restplus.Resource):
-            def get(self):
+        class TestResource2(sanic_restplus.Resource):
+            async def get(self, request):
                 '''
                 GET operation
                 '''
@@ -2862,8 +2859,8 @@ class SwaggerTest(object):
 
         @api.doc(False)
         @api.route('/test3/', endpoint='test3')
-        class TestResource3(restplus.Resource):
-            def get(self):
+        class TestResource3(sanic_restplus.Resource):
+            async def get(self, request):
                 '''
                 GET operation
                 '''
@@ -2873,15 +2870,15 @@ class SwaggerTest(object):
         for path in '/test/', '/test2/', '/test3/':
             assert path not in data['paths']
 
-            resp = client.get(path)
+            resp = await client.get(path)
             assert resp.status_code == 200
 
-    def test_hidden_resource_from_namespace(self, api, client):
+    async def test_hidden_resource_from_namespace(self, api, client):
         ns = api.namespace('ns')
 
         @ns.route('/test/', endpoint='test', doc=False)
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 '''
                 GET operation
                 '''
@@ -2890,21 +2887,21 @@ class SwaggerTest(object):
         data = client.get_specs()
         assert '/ns/test/' not in data['paths']
 
-        resp = client.get('/ns/test/')
+        resp = await client.get('/ns/test/')
         assert resp.status_code == 200
 
     def test_hidden_methods(self, api, client):
         @api.route('/test/', endpoint='test')
         @api.doc(delete=False)
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 '''
                 GET operation
                 '''
                 return {}
 
             @api.doc(False)
-            def post(self):
+            async def post(self, request):
                 '''POST operation.
 
                 Should be ignored
@@ -2932,12 +2929,12 @@ class SwaggerTest(object):
 
     def test_produces_method(self, api, client):
         @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 pass
 
             @api.produces(['application/octet-stream'])
-            def post(self):
+            async def post(self, request):
                 pass
 
         data = client.get_specs()
@@ -2952,11 +2949,11 @@ class SwaggerTest(object):
     def test_deprecated_resource(self, api, client):
         @api.deprecated
         @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 pass
 
-            def post(self):
+            async def post(self, request):
                 pass
 
         data = client.get_specs()
@@ -2967,12 +2964,12 @@ class SwaggerTest(object):
 
     def test_deprecated_method(self, api, client):
         @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 pass
 
             @api.deprecated
-            def post(self):
+            async def post(self, request):
                 pass
 
         data = client.get_specs()
@@ -2986,9 +2983,9 @@ class SwaggerTest(object):
 
     def test_vendor_as_kwargs(self, api, client):
         @api.route('/vendor_fields', endpoint='vendor_fields')
-        class TestResource(restplus.Resource):
+        class TestResource(sanic_restplus.Resource):
             @api.vendor(integration={'integration1': '1'})
-            def get(self):
+            async def get(self, request):
                 return {}
 
         data = client.get_specs()
@@ -3003,7 +3000,7 @@ class SwaggerTest(object):
 
     def test_vendor_as_dict(self, api, client):
         @api.route('/vendor_fields', endpoint='vendor_fields')
-        class TestResource(restplus.Resource):
+        class TestResource(sanic_restplus.Resource):
             @api.vendor({
                 'x-some-integration': {
                     'integration1': '1'
@@ -3032,11 +3029,11 @@ class SwaggerTest(object):
     def test_method_restrictions(self, api, client):
         @api.route('/foo/bar', endpoint='foo')
         @api.route('/bar', methods=['GET'], endpoint='bar')
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 pass
 
-            def post(self):
+            async def post(self, request):
                 pass
 
         data = client.get_specs()
@@ -3053,8 +3050,8 @@ class SwaggerTest(object):
         @api.route('/foo/bar')
         @api.route('/bar')
         @api.doc(description='an endpoint')
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 pass
 
         data = client.get_specs()
@@ -3068,8 +3065,8 @@ class SwaggerTest(object):
     def test_multiple_routes_individual_doc(self, api, client):
         @api.route('/foo/bar', doc={'description': 'the same endpoint'})
         @api.route('/bar', doc={'description': 'an endpoint'})
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 pass
 
         data = client.get_specs()
@@ -3084,8 +3081,8 @@ class SwaggerTest(object):
         @api.route('/foo/bar', doc={'description': 'the same endpoint'})
         @api.route('/bar')
         @api.doc(description='an endpoint')
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 pass
 
         data = client.get_specs()
@@ -3099,8 +3096,8 @@ class SwaggerTest(object):
     def test_multiple_routes_no_doc_same_operationIds(self, api, client):
         @api.route('/foo/bar')
         @api.route('/bar')
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 pass
 
         data = client.get_specs()
@@ -3119,8 +3116,8 @@ class SwaggerTest(object):
             doc={"description": "I should be treated separately"},
         )
         @api.route("/bar")
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 pass
 
         data = client.get_specs()
@@ -3135,8 +3132,8 @@ class SwaggerTest(object):
         @api.route('/foo/bar', doc={'description': 'the same endpoint'})
         @api.route('/bar', doc={'description': False})
         @api.doc(security=[{'oauth2': ['read', 'write']}])
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 pass
 
         data = client.get_specs()
@@ -3152,8 +3149,8 @@ class SwaggerTest(object):
     def test_multiple_routes_deprecation(self, api, client):
         @api.route('/foo/bar', doc={'deprecated': True})
         @api.route('/bar')
-        class TestResource(restplus.Resource):
-            def get(self):
+        class TestResource(sanic_restplus.Resource):
+            async def get(self, request):
                 pass
 
         data = client.get_specs()
@@ -3178,7 +3175,7 @@ class SwaggerTest(object):
                 "age": {"description": "An age"},
             }
         )
-        class ByNameResource(restplus.Resource):
+        class ByNameResource(sanic_restplus.Resource):
             @api.doc(
                 params={"q": {"description": "A query string"}}
             )
@@ -3232,9 +3229,9 @@ class SwaggerDeprecatedTest(object):
 
         with pytest.warns(DeprecationWarning):
             @api.route('/with-parser/')
-            class WithParserResource(restplus.Resource):
+            class WithParserResource(sanic_restplus.Resource):
                 @api.doc(parser=parser)
-                def get(self):
+                async def get(self, request):
                     return {}
 
         assert 'parser' not in WithParserResource.get.__apidoc__
@@ -3249,11 +3246,11 @@ class SwaggerDeprecatedTest(object):
         with pytest.warns(DeprecationWarning):
             @api.route('/with-parser/')
             @api.doc(get={'parser': parser})
-            class WithParserResource(restplus.Resource):
-                def get(self):
+            class WithParserResource(sanic_restplus.Resource):
+                async def get(self, request):
                     return {}
 
-                def post(self):
+                async def post(self, request):
                     return {}
 
         assert 'parser' not in WithParserResource.__apidoc__['get']
@@ -3270,9 +3267,9 @@ class SwaggerDeprecatedTest(object):
 
         with pytest.warns(DeprecationWarning):
             @api.route('/model-as-dict/')
-            class ModelAsDict(restplus.Resource):
+            class ModelAsDict(sanic_restplus.Resource):
                 @api.doc(body=(fields, 'Body description'))
-                def post(self):
+                async def post(self, request):
                     return {}
 
         assert 'body' not in ModelAsDict.post.__apidoc__

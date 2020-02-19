@@ -176,20 +176,30 @@ def best_match_accept_mimetype(request, representations, default=None):
         if accept_mimetypes is None or len(accept_mimetypes) < 1:
             return default
         # find exact matches, in the order they appear in the `Accept:` header
+        found = []
         for accept_type, qual in accept_mimetypes:
             if accept_type in representations:
-                return accept_type
+                found.append((qual, accept_type))
         # match special types, like "application/json;charset=utf8" where the first half matches.
         for accept_type, qual in accept_mimetypes:
             type_part = str(accept_type).split(';', 1)[0]
             if type_part in representations:
-                return type_part
-        # if _none_ of those don't match, then fallback to wildcard matching
-        for accept_type, qual in accept_mimetypes:
-            if accept_type == "*" or accept_type == "*/*" or accept_type == "*.*":
-                return default
-    except (AttributeError, KeyError):
-        return default
+                t = (qual, type_part)
+                if t not in found:
+                    found.append(t)
+        if len(found) < 1:
+            # if _none_ of those match, then fallback to wildcard matching
+            for accept_type, qual in accept_mimetypes:
+                if accept_type == "*" or accept_type == "*/*" or accept_type == "*.*":
+                    found.append((qual, default))
+        qual, best = sorted(found, reverse=True)[0]
+        if qual <= 0.0:
+            return None
+        return best
+    except (AttributeError, LookupError):
+        pass  # fallback is to always return default
+    # never return None here unless default=None
+    return default
 
 def parse_rule(parameter_string):
     """Parse a parameter string into its constituent name, type, and

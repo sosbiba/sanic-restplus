@@ -485,7 +485,7 @@ class MaskAPI(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model)
-            def get(self):
+            async def get(self, request):
                 return {
                     'name': 'John Doe',
                     'age': 42,
@@ -509,7 +509,7 @@ class MaskAPI(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model)
-            def get(self):
+            async def get(self, request):
                 return [{
                     'name': 'John Doe',
                     'age': 42,
@@ -551,7 +551,7 @@ class MaskAPI(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(house)
-            def get(self):
+            async def get(self, request):
                 return {'people': {
                     'father': {'name': 'John', 'age': 42},
                     'mother': {'name': 'Jane', 'age': 42},
@@ -609,7 +609,7 @@ class MaskAPI(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model, mask='{name,age}')
-            def get(self):
+            async def get(self, request):
                 return {
                     'name': 'John Doe',
                     'age': 42,
@@ -634,7 +634,7 @@ class MaskAPI(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model)
-            def get(self):
+            async def get(self, request):
                 return {
                     'name': 'John Doe',
                     'age': 42,
@@ -656,7 +656,7 @@ class MaskAPI(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model)
-            def get(self):
+            async def get(self, request):
                 return {
                     'name': 'John Doe',
                     'age': 42,
@@ -680,7 +680,7 @@ class MaskAPI(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model, mask='{name}')
-            def get(self):
+            async def get(self, request):
                 return {
                     'name': 'John Doe',
                     'age': 42,
@@ -702,7 +702,7 @@ class MaskAPI(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model, mask='{name,age}')
-            def get(self):
+            async def get(self, request):
                 return {
                     'name': 'John Doe',
                     'age': 42,
@@ -724,7 +724,7 @@ class MaskAPI(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model, mask='{name,age}')
-            def get(self):
+            async def get(self, request):
                 return {
                     'name': 'John Doe',
                     'age': 42,
@@ -746,7 +746,7 @@ class MaskAPI(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model)
-            def get(self):
+            async def get(self, request):
                 return {
                     'name': 'John Doe',
                     'age': 42,
@@ -779,7 +779,7 @@ class MaskAPI(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model)
-            def get(self):
+            async def get(self, request):
                 return Person('John Doe', 42)
 
         data = client.get_json('/test/', headers={'X-Fields': '{name,age}'})
@@ -796,7 +796,7 @@ class MaskAPI(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model)
-            def get(self):
+            async def get(self, request):
                 return {
                     'name': 'John Doe',
                     'age': 42,
@@ -868,13 +868,13 @@ class MaskAPI(object):
         @api.route('/thing-1/')
         class Thing1Resource(Resource):
             @api.marshal_with(thing)
-            def get(self):
+            async def get(self, request):
                 return {'owner': Child1()}
 
         @api.route('/thing-2/')
         class Thing2Resource(Resource):
             @api.marshal_with(thing)
-            def get(self):
+            async def get(self, request):
                 return {'owner': Child2()}
 
         data = client.get_json('/thing-1/', headers={'X-Fields': 'owner{name}'})
@@ -886,7 +886,7 @@ class MaskAPI(object):
         data = client.get_json('/thing-2/', headers={'X-Fields': 'owner{name}'})
         assert data == {'owner': {'name': 'child2'}}
 
-    def test_raise_400_on_invalid_mask(self, app, client):
+    async def test_raise_400_on_invalid_mask(self, app, client):
         api = Api(app)
 
         model = api.model('Test', {
@@ -897,10 +897,10 @@ class MaskAPI(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model)
-            def get(self):
+            async def get(self, request):
                 pass
 
-        response = client.get('/test/', headers={'X-Fields': 'name{,missing}'})
+        response = await client.get('/test/', headers={'X-Fields': 'name{,missing}'})
         assert response.status_code == 400
         assert response.content_type == 'application/json'
 
@@ -918,7 +918,7 @@ class SwaggerMaskHeaderTest(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model)
-            def get(self):
+            async def get(self, request):
                 return {
                     'name': 'John Doe',
                     'age': 42,
@@ -952,7 +952,7 @@ class SwaggerMaskHeaderTest(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model)
-            def get(self):
+            async def get(self, request):
                 return {
                     'name': 'John Doe',
                     'age': 42,
@@ -981,7 +981,7 @@ class SwaggerMaskHeaderTest(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model)
-            def get(self):
+            async def get(self, request):
                 return {
                     'name': 'John Doe',
                     'age': 42,
@@ -1006,7 +1006,7 @@ class SwaggerMaskHeaderTest(object):
 
         @api.route('/test/')
         class TestResource(Resource):
-            def get(self):
+            async def get(self, request):
                 return api.marshal({
                     'name': 'John Doe',
                     'age': 42,
@@ -1030,7 +1030,7 @@ class SwaggerMaskHeaderTest(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model, mask='{name,age}')
-            def get(self):
+            async def get(self, request):
                 pass
 
         specs = client.get_specs()
@@ -1060,7 +1060,7 @@ class SwaggerMaskHeaderTest(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model)
-            def get(self):
+            async def get(self, request):
                 pass
 
         specs = client.get_specs()

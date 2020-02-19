@@ -6,10 +6,7 @@ import json
 import six
 import pytest
 
-from werkzeug.exceptions import BadRequest
-from werkzeug.wrappers import Request
-from werkzeug.datastructures import FileStorage, MultiDict
-
+from sanic.request import Request
 from sanic_restplus import Api, Model, fields, inputs
 from sanic_restplus.errors import SpecsError
 from sanic_restplus.reqparse import Argument, RequestParser, ParseResult

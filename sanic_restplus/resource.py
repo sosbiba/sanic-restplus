@@ -65,7 +65,7 @@ class ResourceMeta(type):
 
 class Resource(MethodViewExt, metaclass=ResourceMeta):
     """
-    Represents an abstract RESTPlus resource.
+    Represents an abstract sanic_restplus.Resource.
 
     Concrete resources should extend from this class
     and expose methods for each supported HTTP method.

@@ -3,4 +3,4 @@ jsonschema
 methodtools
 sanic>=18.12.0
 sanic-jinja2-spf>=0.7.5
-sanic-plugins-framework>=0.9.0.b1
+sanic-plugins-framework>=0.9.1

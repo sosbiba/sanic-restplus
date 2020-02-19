@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
 #
+from asyncio import iscoroutinefunction
 from datetime import timedelta
 from functools import update_wrapper
+
+from sanic.request import Request as sanic_request
+from sanic.response import HTTPResponse
+from sanic.views import HTTPMethodView
 
 
 def crossdomain(origin=None, methods=None, headers=None, expose_headers=None,
                 max_age=21600, attach_to_all=True,
                 automatic_options=True, credentials=False):
-    """
-    http://flask.pocoo.org/snippets/56/
-    """
-    raise RuntimeError("Cors and Crossdomain are not supported in Sanic-RestPlus, use Sanic-CORS instead.")
     if methods is not None:
         methods = ', '.join(sorted(x.upper() for x in methods))
     if headers is not None and not isinstance(headers, str):
@@ -22,26 +23,62 @@ def crossdomain(origin=None, methods=None, headers=None, expose_headers=None,
     if isinstance(max_age, timedelta):
         max_age = max_age.total_seconds()
 
-    def get_methods():
-        if methods is not None:
-            return methods
-
-        options_resp = current_app.make_default_options_response()
-        return options_resp.headers['allow']
+    # def get_methods():
+    #     if methods is not None:
+    #         return methods
+    #
+    #     options_resp = current_app.make_default_options_response()
+    #     return options_resp.headers['allow']
 
     def decorator(f):
-        def wrapped_function(*args, **kwargs):
-            if automatic_options and request.method == 'OPTIONS':
-                resp = current_app.make_default_options_response()
+        async def wrapped_function(*args, **kwargs):
+            orig_args = list(args)
+            args_len = len(orig_args)
+            rt = RuntimeError("Must only use crossdomain decorator on a function that takes 'request' as "
+                              "first or second argument")
+            if args_len < 1:
+                #weird, no args
+                raise rt
+            elif args_len < 2:
+                request = orig_args.pop(0)
+                args = (request,)
             else:
-                resp = make_response(f(*args, **kwargs))
+                next_arg = orig_args.pop(0)
+                args = list()
+                if isinstance(next_arg, HTTPMethodView) or issubclass(next_arg, HTTPMethodView):
+                    args.append(next_arg)  # self or cls
+                    next_arg = orig_args.pop(0)
+                request = next_arg
+                args.append(request)
+                args.extend(orig_args)
+                args = tuple(args)
+            if not isinstance(request, sanic_request):
+                raise rt
+            do_await = iscoroutinefunction(f)
+            if automatic_options and request.method == 'OPTIONS':
+                resp = HTTPResponse()
+            else:
+                resp = f(*args, **kwargs)
+                if do_await:
+                    resp = await resp
+            if isinstance(resp, str):
+                resp = HTTPResponse(resp)
+            elif isinstance(resp, tuple):
+                if len(resp) < 2:
+                    resp = HTTPResponse(resp[0])
+                elif len(resp) < 3:
+                    resp = HTTPResponse(resp[0], status=resp[1])
+                else:
+                    resp = HTTPResponse(resp[0], status=resp[1], headers=resp[2])
+            if not isinstance(resp, HTTPResponse):
+                raise RuntimeError("crossorigin wrapper did not get a valid response from the wrapped function")
             if not attach_to_all and request.method != 'OPTIONS':
                 return resp
 
             h = resp.headers
 
             h['Access-Control-Allow-Origin'] = origin
-            h['Access-Control-Allow-Methods'] = get_methods()
+            #h['Access-Control-Allow-Methods'] = get_methods()
             h['Access-Control-Max-Age'] = str(max_age)
             if credentials:
                 h['Access-Control-Allow-Credentials'] = 'true'

@@ -11,21 +11,20 @@ import operator
 import re
 
 from collections import OrderedDict
-from functools import wraps, partial, lru_cache
+from functools import wraps, partial, lru_cache, update_wrapper
 from types import MethodType
 
 from sanic.router import RouteExists, url_hash
 from sanic.response import text, BaseHTTPResponse
 from sanic.views import HTTPMethodView
 from spf.plugin import FutureRoute
-
 try:
     from sanic.response import ALL_STATUS_CODES
 except ImportError:
     from sanic.response import STATUS_CODES as ALL_STATUS_CODES
 from sanic.handlers import ErrorHandler
 from sanic.exceptions import SanicException, InvalidUsage, NotFound
-from sanic import exceptions, Blueprint
+from sanic import exceptions, Sanic, Blueprint
 try:
     from sanic.compat import Header
 except ImportError:
@@ -33,7 +32,7 @@ except ImportError:
         from sanic.server import CIMultiDict as Header
     except ImportError:
         from sanic.server import CIDict as Header
-
+from spf import SanicPluginsFramework
 from jsonschema import RefResolver
 
 from . import apidoc
@@ -154,6 +153,13 @@ class Api(object):
         self._uid = Api.uid_counter
 
         if spf_reg is not None:
+            if isinstance(spf_reg, Sanic):
+                # use legacy init method
+                spf = SanicPluginsFramework(spf_reg)
+                try:
+                    spf_reg = restplus.find_plugin_registration(spf)
+                except LookupError:
+                    raise RuntimeError("Cannot create Api before sanic_restplus is registered on the SPF.")
             self.init_api(reg=spf_reg, **kwargs)
 
     def init_api(self, reg=None, **kwargs):
@@ -195,11 +201,14 @@ class Api(object):
         app = context.app
         # If app is a blueprint, defer the initialization
         if isinstance(app, Blueprint):
-            raise RuntimeError("As of Sanic 0.7.0, you cannot use Sanic-Restplus on a Blueprint. This will likely "
-                               "change in the future.")
-            # Blueprint has a 'record' attribute, Flask.Api does not
-            app.record(self._deferred_blueprint_init)
+            orig_reg = app.register
+            def new_reg(_app, _options):
+                nonlocal self, orig_reg
+                r = orig_reg(_app, _options)
+                self._deferred_blueprint_init(r)
+                return r
             self.blueprint = app
+            self.blueprint.register = update_wrapper(new_reg, orig_reg)
         else:
             self._init_app(app, context)
 
@@ -214,7 +223,6 @@ class Api(object):
         self._register_specs()
         self._register_doc()
 
-        #TODO Sanic fix exception handling
         app.error_handler = ApiErrorHandler(app.error_handler, self)
         #app.handle_user_exception = partial(self.error_router, app.handle_user_exception)
 
@@ -874,7 +882,7 @@ class Api(object):
         :type setup_state: flask.blueprints.BlueprintSetupState
 
         '''
-
+        raise RuntimeError("Sorry, cannot use Blueprints in Sanic-Restplus yet. We're working on it.")
         self.blueprint_setup = setup_state
         if setup_state.add_url_rule.__name__ != '_blueprint_setup_add_url_rule_patch':
             setup_state._original_add_url_rule = setup_state.add_url_rule

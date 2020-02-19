@@ -1,31 +1,29 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-import flask
-
-from flask import Blueprint, request
-
-import sanic_restplus as restplus
+from sanic import Blueprint
+import sanic_restplus
+from sanic_restplus import restplus, abort
 
 
 # Add a dummy Resource to verify that the app is properly set.
-class HelloWorld(restplus.Resource):
-    def get(self):
+class HelloWorld(sanic_restplus.Resource):
+    async def get(self, request):
         return {}
 
 
-class GoodbyeWorld(restplus.Resource):
+class GoodbyeWorld(sanic_restplus.Resource):
     def __init__(self, err):
         self.err = err
 
-    def get(self):
-        flask.abort(self.err)
+    async def get(self, request):
+        abort(self.err)
 
 
 class APIWithBlueprintTest(object):
     def test_api_base(self, app):
         blueprint = Blueprint('test', __name__)
-        api = restplus.Api(blueprint)
+        api = sanic_restplus.Api(blueprint)
         app.register_blueprint(blueprint)
         assert api.urls == {}
         assert api.prefix == ''
@@ -33,14 +31,14 @@ class APIWithBlueprintTest(object):
 
     def test_api_delayed_initialization(self, app):
         blueprint = Blueprint('test', __name__)
-        api = restplus.Api()
+        api = sanic_restplus.Api()
         api.init_app(blueprint)
         app.register_blueprint(blueprint)
         api.add_resource(HelloWorld, '/', endpoint="hello")
 
     def test_add_resource_endpoint(self, app, mocker):
         blueprint = Blueprint('test', __name__)
-        api = restplus.Api(blueprint)
+        api = sanic_restplus.Api(blueprint)
         view = mocker.Mock(**{'as_view.return_value.__name__': str('test_view')})
         api.add_resource(view, '/foo', endpoint='bar')
         app.register_blueprint(blueprint)
@@ -48,7 +46,7 @@ class APIWithBlueprintTest(object):
 
     def test_add_resource_endpoint_after_registration(self, app, mocker):
         blueprint = Blueprint('test', __name__)
-        api = restplus.Api(blueprint)
+        api = sanic_restplus.Api(blueprint)
         app.register_blueprint(blueprint)
         view = mocker.Mock(**{'as_view.return_value.__name__': str('test_view')})
         api.add_resource(view, '/foo', endpoint='bar')
@@ -56,7 +54,7 @@ class APIWithBlueprintTest(object):
 
     def test_url_with_api_prefix(self, app):
         blueprint = Blueprint('test', __name__)
-        api = restplus.Api(blueprint, prefix='/api')
+        api = sanic_restplus.Api(blueprint, prefix='/api')
         api.add_resource(HelloWorld, '/hi', endpoint='hello')
         app.register_blueprint(blueprint)
         with app.test_request_context('/api/hi'):
@@ -64,7 +62,7 @@ class APIWithBlueprintTest(object):
 
     def test_url_with_blueprint_prefix(self, app):
         blueprint = Blueprint('test', __name__, url_prefix='/bp')
-        api = restplus.Api(blueprint)
+        api = sanic_restplus.Api(blueprint)
         api.add_resource(HelloWorld, '/hi', endpoint='hello')
         app.register_blueprint(blueprint)
         with app.test_request_context('/bp/hi'):
@@ -72,7 +70,7 @@ class APIWithBlueprintTest(object):
 
     def test_url_with_registration_prefix(self, app):
         blueprint = Blueprint('test', __name__)
-        api = restplus.Api(blueprint)
+        api = sanic_restplus.Api(blueprint)
         api.add_resource(HelloWorld, '/hi', endpoint='hello')
         app.register_blueprint(blueprint, url_prefix='/reg')
         with app.test_request_context('/reg/hi'):
@@ -80,7 +78,7 @@ class APIWithBlueprintTest(object):
 
     def test_registration_prefix_overrides_blueprint_prefix(self, app):
         blueprint = Blueprint('test', __name__, url_prefix='/bp')
-        api = restplus.Api(blueprint)
+        api = sanic_restplus.Api(blueprint)
         api.add_resource(HelloWorld, '/hi', endpoint='hello')
         app.register_blueprint(blueprint, url_prefix='/reg')
         with app.test_request_context('/reg/hi'):
@@ -88,7 +86,7 @@ class APIWithBlueprintTest(object):
 
     def test_url_with_api_and_blueprint_prefix(self, app):
         blueprint = Blueprint('test', __name__, url_prefix='/bp')
-        api = restplus.Api(blueprint, prefix='/api')
+        api = sanic_restplus.Api(blueprint, prefix='/api')
         api.add_resource(HelloWorld, '/hi', endpoint='hello')
         app.register_blueprint(blueprint)
         with app.test_request_context('/bp/api/hi'):
@@ -96,7 +94,7 @@ class APIWithBlueprintTest(object):
 
     def test_error_routing(self, app, mocker):
         blueprint = Blueprint('test', __name__)
-        api = restplus.Api(blueprint)
+        api = sanic_restplus.Api(blueprint)
         api.add_resource(HelloWorld, '/hi', endpoint="hello")
         api.add_resource(GoodbyeWorld(404), '/bye', endpoint="bye")
         app.register_blueprint(blueprint)
@@ -109,11 +107,11 @@ class APIWithBlueprintTest(object):
 
     def test_non_blueprint_rest_error_routing(self, app, mocker):
         blueprint = Blueprint('test', __name__)
-        api = restplus.Api(blueprint)
+        api = sanic_restplus.Api(blueprint)
         api.add_resource(HelloWorld, '/hi', endpoint="hello")
         api.add_resource(GoodbyeWorld(404), '/bye', endpoint="bye")
         app.register_blueprint(blueprint, url_prefix='/blueprint')
-        api2 = restplus.Api(app)
+        api2 = sanic_restplus.Api(app)
         api2.add_resource(HelloWorld(api), '/hi', endpoint="hello")
         api2.add_resource(GoodbyeWorld(404), '/bye', endpoint="bye")
         with app.test_request_context('/hi', method='POST'):
@@ -137,7 +135,7 @@ class APIWithBlueprintTest(object):
 
     def test_non_blueprint_non_rest_error_routing(self, app, mocker):
         blueprint = Blueprint('test', __name__)
-        api = restplus.Api(blueprint)
+        api = sanic_restplus.Api(blueprint)
         api.add_resource(HelloWorld, '/hi', endpoint="hello")
         api.add_resource(GoodbyeWorld(404), '/bye', endpoint="bye")
         app.register_blueprint(blueprint, url_prefix='/blueprint')
@@ -148,7 +146,7 @@ class APIWithBlueprintTest(object):
 
         @app.route('/bye')
         def bye():
-            flask.abort(404)
+            abort(404)
         with app.test_request_context('/hi', method='POST'):
             assert api._should_use_fr_error_handler() is False
             assert api._has_fr_route() is False

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-import sanic_restplus as restplus
+import sanic_restplus
+from sanic_restplus import restplus
 
 
 class PayloadTest(object):
@@ -13,7 +14,7 @@ class PayloadTest(object):
             assert error in out['errors']
 
     def test_validation_false_on_constructor(self, app, client):
-        api = restplus.Api(app, validate=False)
+        api = sanic_restplus.Api(app, validate=False)
 
         fields = api.model('Person', {
             'name': restplus.fields.String(required=True),
@@ -22,16 +23,16 @@ class PayloadTest(object):
         })
 
         @api.route('/validation/')
-        class ValidationOff(restplus.Resource):
+        class ValidationOff(sanic_restplus.Resource):
             @api.expect(fields)
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.post_json('/validation/', {})
         assert data == {}
 
     def test_validation_false_on_constructor_with_override(self, app, client):
-        api = restplus.Api(app, validate=False)
+        api = sanic_restplus.Api(app, validate=False)
 
         fields = api.model('Person', {
             'name': restplus.fields.String(required=True),
@@ -40,15 +41,15 @@ class PayloadTest(object):
         })
 
         @api.route('/validation/')
-        class ValidationOn(restplus.Resource):
+        class ValidationOn(sanic_restplus.Resource):
             @api.expect(fields, validate=True)
-            def post(self):
+            async def post(self, request):
                 return {}
 
         self.assert_errors(client, '/validation/', {}, 'name')
 
     def test_validation_true_on_constructor(self, app, client):
-        api = restplus.Api(app, validate=True)
+        api = sanic_restplus.Api(app, validate=True)
 
         fields = api.model('Person', {
             'name': restplus.fields.String(required=True),
@@ -57,15 +58,15 @@ class PayloadTest(object):
         })
 
         @api.route('/validation/')
-        class ValidationOff(restplus.Resource):
+        class ValidationOff(sanic_restplus.Resource):
             @api.expect(fields)
-            def post(self):
+            async def post(self, request):
                 return {}
 
         self.assert_errors(client, '/validation/', {}, 'name')
 
     def test_validation_true_on_constructor_with_override(self, app, client):
-        api = restplus.Api(app, validate=True)
+        api = sanic_restplus.Api(app, validate=True)
 
         fields = api.model('Person', {
             'name': restplus.fields.String(required=True),
@@ -74,9 +75,9 @@ class PayloadTest(object):
         })
 
         @api.route('/validation/')
-        class ValidationOff(restplus.Resource):
+        class ValidationOff(sanic_restplus.Resource):
             @api.expect(fields, validate=False)
-            def post(self):
+            async def post(self, request):
                 return {}
 
         data = client.post_json('/validation/', {})
@@ -87,13 +88,13 @@ class PayloadTest(object):
             __schema_type__ = 'string'
             __schema_format__ = 'ipv4'
 
-        api = restplus.Api(app, format_checker=format_checker)
+        api = sanic_restplus.Api(app, format_checker=format_checker)
         model = api.model('MyModel', {'ip': IPAddress(required=True)})
 
         @api.route('/format_checker/')
-        class TestResource(restplus.Resource):
+        class TestResource(sanic_restplus.Resource):
             @api.expect(model, validate=True)
-            def post(self):
+            async def post(self, request):
                 return {}
 
     def test_format_checker_none_on_constructor(self, app, client):
@@ -111,7 +112,7 @@ class PayloadTest(object):
 
     def test_validation_false_in_config(self, app, client):
         app.config['RESTPLUS_VALIDATE'] = False
-        api = restplus.Api(app)
+        api = sanic_restplus.Api(app)
 
         fields = api.model('Person', {
             'name': restplus.fields.String(required=True),
@@ -120,9 +121,9 @@ class PayloadTest(object):
         })
 
         @api.route('/validation/')
-        class ValidationOff(restplus.Resource):
+        class ValidationOff(sanic_restplus.Resource):
             @api.expect(fields)
-            def post(self):
+            async def post(self, request):
                 return {}
 
         out = client.post_json('/validation/', {})
@@ -133,7 +134,7 @@ class PayloadTest(object):
 
     def test_validation_in_config(self, app, client):
         app.config['RESTPLUS_VALIDATE'] = True
-        api = restplus.Api(app)
+        api = sanic_restplus.Api(app)
 
         fields = api.model('Person', {
             'name': restplus.fields.String(required=True),
@@ -142,15 +143,15 @@ class PayloadTest(object):
         })
 
         @api.route('/validation/')
-        class ValidationOn(restplus.Resource):
+        class ValidationOn(sanic_restplus.Resource):
             @api.expect(fields)
-            def post(self):
+            async def post(self, request):
                 return {}
 
         self.assert_errors(client, '/validation/', {}, 'name')
 
     def test_api_payload(self, app, client):
-        api = restplus.Api(app, validate=True)
+        api = sanic_restplus.Api(app, validate=True)
 
         fields = api.model('Person', {
             'name': restplus.fields.String(required=True),
@@ -159,7 +160,7 @@ class PayloadTest(object):
         })
 
         @api.route('/validation/')
-        class Payload(restplus.Resource):
+        class Payload(sanic_restplus.Resource):
             payload = None
 
             @api.expect(fields)
@@ -178,7 +179,7 @@ class PayloadTest(object):
 
     def test_validation_with_inheritance(self, app, client):
         '''It should perform validation with inheritance (allOf/$ref)'''
-        api = restplus.Api(app, validate=True)
+        api = sanic_restplus.Api(app, validate=True)
 
         fields = api.model('Parent', {
             'name': restplus.fields.String(required=True),
@@ -189,9 +190,9 @@ class PayloadTest(object):
         })
 
         @api.route('/validation/')
-        class Inheritance(restplus.Resource):
+        class Inheritance(sanic_restplus.Resource):
             @api.expect(child_fields)
-            def post(self):
+            async def post(self, request):
                 return {}
 
         client.post_json('/validation/', {
@@ -205,7 +206,7 @@ class PayloadTest(object):
 
     def test_validation_on_list(self, app, client):
         '''It should perform validation on lists'''
-        api = restplus.Api(app, validate=True)
+        api = sanic_restplus.Api(app, validate=True)
 
         person = api.model('Person', {
             'name': restplus.fields.String(required=True),
@@ -218,9 +219,9 @@ class PayloadTest(object):
         })
 
         @api.route('/validation/')
-        class List(restplus.Resource):
+        class List(sanic_restplus.Resource):
             @api.expect(family)
-            def post(self):
+            async def post(self, request):
                 return {}
 
         self.assert_errors(client, '/validation/', {
@@ -231,31 +232,31 @@ class PayloadTest(object):
     def _setup_expect_validation_single_resource_tests(self, app):
         # Setup a minimal Api with endpoint that expects in input payload
         # a single object of a resource
-        api = restplus.Api(app, validate=True)
+        api = sanic_restplus.Api(app, validate=True)
 
         user = api.model('User', {
             'username': restplus.fields.String()
         })
 
         @api.route('/validation/')
-        class Users(restplus.Resource):
+        class Users(sanic_restplus.Resource):
             @api.expect(user)
-            def post(self):
+            async def post(self, request):
                 return {}
 
     def _setup_expect_validation_collection_resource_tests(self, app):
         # Setup a minimal Api with endpoint that expects in input payload
         # one or more objects of a resource
-        api = restplus.Api(app, validate=True)
+        api = sanic_restplus.Api(app, validate=True)
 
         user = api.model('User', {
             'username': restplus.fields.String()
         })
 
         @api.route('/validation/')
-        class Users(restplus.Resource):
+        class Users(sanic_restplus.Resource):
             @api.expect([user])
-            def post(self):
+            async def post(self, request):
                 return {}
 
     def test_expect_validation_single_resource_success(self, app, client):
@@ -312,7 +313,7 @@ class PayloadTest(object):
 
     def test_validation_with_propagate(self, app, client):
         app.config['PROPAGATE_EXCEPTIONS'] = True
-        api = restplus.Api(app, validate=True)
+        api = sanic_restplus.Api(app, validate=True)
 
         fields = api.model('Person', {
             'name': restplus.fields.String(required=True),
@@ -321,23 +322,22 @@ class PayloadTest(object):
         })
 
         @api.route('/validation/')
-        class ValidationOff(restplus.Resource):
+        class ValidationOff(sanic_restplus.Resource):
             @api.expect(fields)
-            def post(self):
+            async def post(self, request):
                 return {}
 
         self.assert_errors(client, '/validation/', {}, 'name')
 
-    def test_empty_payload(self, app, client):
-        api = restplus.Api(app, validate=True)
+    async def test_empty_payload(self, app, client):
+        api = sanic_restplus.Api(app, validate=True)
 
         @api.route('/empty/')
-        class Payload(restplus.Resource):
-            def post(self):
-
+        class Payload(sanic_restplus.Resource):
+            async def post(self, request):
                 return {}
 
-        response = client.post('/empty/', data='',
+        response = await client.post('/empty/', data='',
                                headers={'content-type': 'application/json'})
 
         assert response.status_code == 200

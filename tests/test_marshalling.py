@@ -12,7 +12,7 @@ from collections import OrderedDict
 
 # Add a dummy Resource to verify that the app is properly set.
 class HelloWorld(Resource):
-    def get(self):
+    async def get(self, request):
         return {}
 
 
@@ -389,16 +389,16 @@ class MarshallingTest(object):
         assert output == expected
 
     @pytest.mark.options(debug=True)
-    def test_will_prettyprint_json_in_debug_mode(self, app, client):
+    async def test_will_prettyprint_json_in_debug_mode(self, app, client):
         api = Api(app)
 
         class Foo1(Resource):
-            def get(self):
+            async def get(self, request):
                 return {'foo': 'bar', 'baz': 'asdf'}
 
         api.add_resource(Foo1, '/foo', endpoint='bar')
 
-        foo = client.get('/foo')
+        foo = await client.get('/foo')
 
         # Python's dictionaries have random order (as of "new" Pythons,
         # anyway), so we can't verify the actual output here.  We just
@@ -413,17 +413,17 @@ class MarshallingTest(object):
         # Assert our trailing newline.
         assert foo.data.endswith(b'\n')
 
-    def test_json_float_marshalled(self, app, client):
+    async def test_json_float_marshalled(self, app, client):
         api = Api(app)
 
         class FooResource(Resource):
             fields = {'foo': fields.Float}
 
-            def get(self):
+            async def get(self, request):
                 return marshal({"foo": 3.0}, self.fields)
 
         api.add_resource(FooResource, '/api')
 
-        resp = client.get('/api')
+        resp = await client.get('/api')
         assert resp.status_code == 200
         assert resp.data.decode('utf-8') == '{"foo": 3.0}\n'
