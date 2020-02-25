@@ -277,15 +277,10 @@ class Api(object):
         spf, plugin_name, plugin_prefix = self.spf_reg
         loader = PackageLoader(__name__, 'templates')
         enable_async = cur_py_version >= async_req_version
-        try:
-            j2 = sanic_jinja2_plugin.find_plugin_registration(spf)
-        except (AttributeError, LookupError):
-            if spf._running:  # can't add a new plugin
-                context = restplus.get_context_from_spf(self.spf_reg)
-                app = context.app
-                j2 = SanicJinja2(app, loader=loader, pkg_name=plugin_name, enable_async=enable_async)
-            else:
-                j2 = spf.register_plugin(sanic_jinja2_plugin, loader=loader, enable_async=enable_async)
+        context = restplus.get_context_from_spf(self.spf_reg)
+        # Don't try to use an already registered Jinja2-plugin, it causes too much incompatibility with template
+        # loaders. Just use a new one of our own.
+        j2 = SanicJinja2(context.app, loader=loader, pkg_name=plugin_name, enable_async=enable_async)
 
         def swagger_static(filename):
             nonlocal self
@@ -294,14 +289,13 @@ class Api(object):
             return restplus.spf_resolve_url_for(spf, endpoint, filename=filename)
 
         def config():
-            nonlocal self
-            context = restplus.get_context_from_spf(self.spf_reg)
+            nonlocal self, context
             app = context.app
             if isinstance(app, Blueprint):
                 return {}
             return app.config
 
-        if cur_py_version >= async_req_version:
+        if enable_async:
             async def api_renderer(request, api, request_context):
                 """Render a SwaggerUI for a given API"""
                 nonlocal j2, swagger_static, config
