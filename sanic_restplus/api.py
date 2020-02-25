@@ -277,15 +277,15 @@ class Api(object):
         spf, plugin_name, plugin_prefix = self.spf_reg
         loader = PackageLoader(__name__, 'templates')
         enable_async = cur_py_version >= async_req_version
-        if spf._running:  # can't add a new plugin
-            try:
-                j2 = sanic_jinja2_plugin.find_plugin_registration(spf)
-            except (AttributeError, LookupError):
+        try:
+            j2 = sanic_jinja2_plugin.find_plugin_registration(spf)
+        except (AttributeError, LookupError):
+            if spf._running:  # can't add a new plugin
                 context = restplus.get_context_from_spf(self.spf_reg)
                 app = context.app
                 j2 = SanicJinja2(app, loader=loader, pkg_name=plugin_name, enable_async=enable_async)
-        else:
-            j2 = spf.register_plugin(sanic_jinja2_plugin, loader=loader, enable_async=enable_async)
+            else:
+                j2 = spf.register_plugin(sanic_jinja2_plugin, loader=loader, enable_async=enable_async)
 
         def swagger_static(filename):
             nonlocal self
