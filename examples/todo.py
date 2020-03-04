@@ -1,6 +1,7 @@
 from sanic import Sanic
 
 from sanic_restplus import Api, fields, Resource
+from sanic_restplus.cors import crossdomain
 from sanic_restplus.restplus import restplus
 from spf import SanicPluginsFramework
 app = Sanic(__name__)
@@ -41,6 +42,7 @@ parser.add_argument('task', type=str, required=True, help='The task details', lo
 class Todo(Resource):
     '''Show a single todo item and lets you delete them'''
     @api.doc(description='todo_id should be in {0}'.format(', '.join(TODOS.keys())))
+    @crossdomain('*', methods=('GET', 'DELETE', 'PUT'), automatic_options=True)
     @api.marshal_with(todo)
     async def get(self, request, todo_id, context):
         '''Fetch a given resource'''
@@ -68,6 +70,7 @@ class Todo(Resource):
 @ns.route('/')
 class TodoList(Resource):
     '''Shows a list of all todos, and lets you POST to add new tasks'''
+    @crossdomain('*', methods=('GET', 'POST'), automatic_options=True)
     @api.marshal_list_with(listed_todo)
     async def get(self, request, context):
         '''List all todos'''

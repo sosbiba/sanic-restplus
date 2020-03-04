@@ -89,6 +89,10 @@ class Resource(MethodViewExt, metaclass=ResourceMeta):
         meth = getattr(self, requestmethod.lower(), None)
         if meth is None and requestmethod == 'HEAD':
             meth = getattr(self, 'get', None)
+            requestmethod = 'GET'
+        elif meth is None and requestmethod == 'OPTIONS':
+            meth = getattr(self, 'get', None)
+            requestmethod = 'GET'
         assert meth is not None, 'Unimplemented method {0!r}'.format(requestmethod)
         method_has_context = self.method_has_context.get(requestmethod, False)
         for decorator in self.method_decorators:

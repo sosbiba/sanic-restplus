@@ -385,12 +385,15 @@ class Api(object):
         resource_class_args = kwargs.pop('resource_class_args', ())
         resource_class_kwargs = kwargs.pop('resource_class_kwargs', {})
         (spf, plugin_name, plugin_url_prefix) = self.spf_reg
-        #endpoint = "{}.{}".format(plugin_name, endpoint)
         resource.mediatypes = self.mediatypes_method()  # Hacky
         resource.endpoint = endpoint
         methods = resource.methods
         if methods is None or len(methods) < 1:
-            methods = ['GET']
+            methods = ['GET', 'OPTIONS']
+        else:
+            methods = list(methods)
+        if 'OPTIONS' not in methods:
+            methods.append('OPTIONS')  # Always add options, so CORS will work properly
         resource_func = self.output(resource.as_view_named(endpoint, self, *resource_class_args,
                                                            **resource_class_kwargs))
         for decorator in chain(namespace.decorators, self.decorators):
@@ -404,7 +407,7 @@ class Api(object):
                 if self.blueprint_setup:
                     # Set the rule to a string directly, as the blueprint is already
                     # set up.
-                    self.blueprint_setup.add_url_rule(url, view_func=resource_func, **kwargs)
+                    self.blueprint_setup.add_url_rule(url, view_func=resource_func, methods=methods, **kwargs)
                     continue
                 else:
                     # Set the rule to a function that expects the blueprint prefix
@@ -417,7 +420,7 @@ class Api(object):
                 # If we've got no Blueprint, just build a url with no prefix
                 rule = self._complete_url(url, '')
             # Add the url to the application or blueprint
-            r = FutureRoute(resource_func, rule, (), {'with_context': True})
+            r = FutureRoute(resource_func, rule, (), {'methods': methods, 'with_context': True})
             spf._register_route_helper(r, spf, restplus, context, plugin_name, plugin_url_prefix)
 
     def output(self, resource):

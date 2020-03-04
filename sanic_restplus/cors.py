@@ -4,6 +4,7 @@ from asyncio import iscoroutinefunction
 from datetime import timedelta
 from functools import update_wrapper
 
+from sanic.constants import HTTP_METHODS
 from sanic.request import Request as sanic_request
 from sanic.response import HTTPResponse
 from sanic.views import HTTPMethodView
@@ -13,7 +14,10 @@ def crossdomain(origin=None, methods=None, headers=None, expose_headers=None,
                 max_age=21600, attach_to_all=True,
                 automatic_options=True, credentials=False):
     if methods is not None:
-        methods = ', '.join(sorted(x.upper() for x in methods))
+        m = list(sorted(x.upper() for x in methods))
+        if 'OPTIONS' not in m:
+            m.append('OPTIONS')
+        methods = ', '.join(m)
     if headers is not None and not isinstance(headers, str):
         headers = ', '.join(x.upper() for x in headers)
     if expose_headers is not None and not isinstance(expose_headers, str):
@@ -23,12 +27,13 @@ def crossdomain(origin=None, methods=None, headers=None, expose_headers=None,
     if isinstance(max_age, timedelta):
         max_age = max_age.total_seconds()
 
-    # def get_methods():
-    #     if methods is not None:
-    #         return methods
-    #
-    #     options_resp = current_app.make_default_options_response()
-    #     return options_resp.headers['allow']
+    def get_methods():
+        if methods is not None:
+            return methods
+        # Todo:
+        #  This is wrong for now, we need a way to find
+        #  only the methods the httpmethodview contains
+        return ', '.join(HTTP_METHODS)
 
     def decorator(f):
         async def wrapped_function(*args, **kwargs):
@@ -78,7 +83,7 @@ def crossdomain(origin=None, methods=None, headers=None, expose_headers=None,
             h = resp.headers
 
             h['Access-Control-Allow-Origin'] = origin
-            #h['Access-Control-Allow-Methods'] = get_methods()
+            h['Access-Control-Allow-Methods'] = get_methods()
             h['Access-Control-Max-Age'] = str(max_age)
             if credentials:
                 h['Access-Control-Allow-Credentials'] = 'true'
