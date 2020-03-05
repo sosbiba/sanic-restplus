@@ -21,7 +21,7 @@ Important Compatibility Notice
 
 Sanic-RestPlus version 0.4.1 (and previous versions) **does not work** on Sanic 19.12+, see this bug here: https://github.com/ashleysommer/sanicpluginsframework/issues/15
 
-Please use latest Sanic-Restplus (v0.5.2 or greater) if you need to deploy on Sanic v19.12+.
+Please use latest Sanic-Restplus (v0.5.3 or greater) if you need to deploy on Sanic v19.12+.
 
 
 Installation

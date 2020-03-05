@@ -9,6 +9,8 @@ from sanic.request import Request as sanic_request
 from sanic.response import HTTPResponse
 from sanic.views import HTTPMethodView
 
+from sanic_restplus.utils import unpack
+
 
 def crossdomain(origin=None, methods=None, headers=None, expose_headers=None,
                 max_age=21600, attach_to_all=True,
@@ -66,31 +68,33 @@ def crossdomain(origin=None, methods=None, headers=None, expose_headers=None,
                 resp = f(*args, **kwargs)
                 if do_await:
                     resp = await resp
-            if isinstance(resp, str):
-                resp = HTTPResponse(resp)
-            elif isinstance(resp, tuple):
-                if len(resp) < 2:
-                    resp = HTTPResponse(resp[0])
-                elif len(resp) < 3:
-                    resp = HTTPResponse(resp[0], status=resp[1])
-                else:
-                    resp = HTTPResponse(resp[0], status=resp[1], headers=resp[2])
-            if not isinstance(resp, HTTPResponse):
-                raise RuntimeError("crossorigin wrapper did not get a valid response from the wrapped function")
             if not attach_to_all and request.method != 'OPTIONS':
                 return resp
 
-            h = resp.headers
+            def apply_cors(h):
+                nonlocal origin, get_methods, max_age, credentials, headers, expose_headers
+                h['Access-Control-Allow-Origin'] = origin
+                h['Access-Control-Allow-Methods'] = get_methods()
+                h['Access-Control-Max-Age'] = str(max_age)
+                if credentials:
+                    h['Access-Control-Allow-Credentials'] = 'true'
+                if headers is not None:
+                    h['Access-Control-Allow-Headers'] = headers
+                if expose_headers is not None:
+                    h['Access-Control-Expose-Headers'] = expose_headers
 
-            h['Access-Control-Allow-Origin'] = origin
-            h['Access-Control-Allow-Methods'] = get_methods()
-            h['Access-Control-Max-Age'] = str(max_age)
-            if credentials:
-                h['Access-Control-Allow-Credentials'] = 'true'
-            if headers is not None:
-                h['Access-Control-Allow-Headers'] = headers
-            if expose_headers is not None:
-                h['Access-Control-Expose-Headers'] = expose_headers
+            if isinstance(resp, HTTPResponse):
+                apply_cors(resp.headers)
+            elif isinstance(resp, tuple):
+                resp, status, h = unpack(resp)
+                apply_cors(h)
+                resp = resp, status, h
+            elif isinstance(resp, (str, list, dict, set, frozenset)):
+                h = dict()
+                apply_cors(h)
+                resp = resp, 200, headers
+            else:
+                raise RuntimeError("crossorigin wrapper did not get a valid response from the wrapped function")
             return resp
 
         f.provide_automatic_options = False

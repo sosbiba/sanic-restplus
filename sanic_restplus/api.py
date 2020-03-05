@@ -19,16 +19,16 @@ from jinja2 import PackageLoader
 from sanic.router import RouteExists, url_hash
 from sanic.response import text, BaseHTTPResponse
 from sanic.views import HTTPMethodView
-from sanic_jinja2_spf import sanic_jinja2 as sanic_jinja2_plugin
 from sanic_jinja2 import SanicJinja2
 from spf.plugin import FutureRoute, FutureStatic
+
 
 try:
     from sanic.response import ALL_STATUS_CODES
 except ImportError:
     from sanic.response import STATUS_CODES as ALL_STATUS_CODES
 from sanic.handlers import ErrorHandler
-from sanic.exceptions import SanicException, InvalidUsage, NotFound, abort
+from sanic.exceptions import SanicException, InvalidUsage, NotFound
 from sanic import exceptions, Sanic, Blueprint
 try:
     from sanic.compat import Header
@@ -245,7 +245,6 @@ class Api(object):
         app.config.setdefault('RESTPLUS_MASK_SWAGGER', True)
         context.MASK_HEADER = app.config['RESTPLUS_MASK_HEADER']
         context.MASK_SWAGGER = app.config['RESTPLUS_MASK_SWAGGER']
-
 
     def __getattr__(self, name):
         try:
@@ -486,14 +485,14 @@ class Api(object):
         return func
 
     def render_root(self, request):
-        self.abort(HTTPStatus.NOT_FOUND)
+        return self.abort(HTTPStatus.NOT_FOUND)
 
     async def render_doc(self, request, context, api_renderer=None):
         '''Override this method to customize the documentation page'''
         if self._doc_view:
             response = self._doc_view()
         elif not self._doc:
-            return abort(HTTPStatus.NOT_FOUND)
+            return self.abort(HTTPStatus.NOT_FOUND)
         elif api_renderer is None:
             raise RuntimeError("No renderer function given for Doc view")
         else:
@@ -806,15 +805,19 @@ class Api(object):
         else:
             if isinstance(e, SanicException):
                 sanic_code = code = e.status_code
-                if sanic_code is 200:
-                    status = b'OK'
-                # x is y comparison only works between -5 and 256
-                elif sanic_code == 404:
-                    status = b'Not Found'
-                elif sanic_code == 500:
-                    status = b'Internal Server Error'
-                else:
-                    status = ALL_STATUS_CODES.get(int(sanic_code))
+                try:
+                    status = e.args[0]
+                    assert isinstance(status, (str, bytes))
+                except (AttributeError, LookupError, AssertionError):
+                    if sanic_code is 200:
+                        status = b'OK'
+                    # x is y comparison only works between -5 and 256
+                    elif sanic_code == 404:
+                        status = b'Not Found'
+                    elif sanic_code == 500:
+                        status = b'Internal Server Error'
+                    else:
+                        status = ALL_STATUS_CODES.get(int(sanic_code))
                 code = HTTPStatus(sanic_code, None)
                 if status and isinstance(status, bytes):
                     status = status.decode('ascii')
