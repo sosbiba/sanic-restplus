@@ -92,7 +92,7 @@ def crossdomain(origin=None, methods=None, headers=None, expose_headers=None,
             elif isinstance(resp, (str, list, dict, set, frozenset)):
                 h = dict()
                 apply_cors(h)
-                resp = resp, 200, headers
+                resp = resp, 200, h
             else:
                 raise RuntimeError("crossorigin wrapper did not get a valid response from the wrapped function")
             return resp
