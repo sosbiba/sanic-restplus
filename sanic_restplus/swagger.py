@@ -4,7 +4,6 @@ import itertools
 import re
 
 from inspect import isclass, getdoc
-from collections import OrderedDict
 try:
     from collections.abc import Hashable
 except ImportError:
@@ -14,7 +13,7 @@ from . import fields
 from.restplus import restplus
 from .model import Model, ModelBase
 from .reqparse import RequestParser
-from .utils import merge, not_none, not_none_sorted, parse_rule
+from .utils import merge, not_none, not_none_sorted, parse_rule, OrderedDict
 from ._http import HTTPStatus
 
 
@@ -499,6 +498,10 @@ class Swagger(object):
         for d in doc, doc[method]:
             if 'responses' in d:
                 for code, response in d['responses'].items():
+                    try:
+                        code = str(code)
+                    except Exception:
+                        raise RuntimeError("response code must be able to be serialized to a string.")
                     if isinstance(response, str):
                         description = response
                         model = None
@@ -530,7 +533,7 @@ class Swagger(object):
                         error_responses = getattr(handler, '__apidoc__', {}).get('responses', {})
                         code = list(error_responses.keys())[0] if error_responses else None
                         if code and exception.__name__ == name:
-                            responses[code] = {'$ref': '#/responses/{0}'.format(name)}
+                            responses[str(code)] = {'$ref': '#/responses/{0}'.format(name)}
                             break
 
         if not responses:

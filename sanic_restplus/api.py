@@ -11,7 +11,7 @@ import logging
 import operator
 import re
 
-from collections import OrderedDict
+
 from functools import wraps, partial, lru_cache, update_wrapper
 from types import MethodType
 
@@ -21,7 +21,6 @@ from sanic.response import text, BaseHTTPResponse
 from sanic.views import HTTPMethodView
 from sanic_jinja2 import SanicJinja2
 from spf.plugin import FutureRoute, FutureStatic
-
 
 try:
     from sanic.response import ALL_STATUS_CODES
@@ -46,19 +45,20 @@ from .namespace import Namespace
 from .postman import PostmanCollectionV1
 from .resource import Resource
 from .swagger import Swagger
-from .utils import default_id, camel_to_dash, unpack, best_match_accept_mimetype, get_accept_mimetypes
-from .representations import output_json
+from .utils import OrderedDict, cur_py_version, default_id, camel_to_dash, unpack, best_match_accept_mimetype, get_accept_mimetypes
+from .representations import output_json_fast
 from ._http import HTTPStatus
 
-async_req_version = (3, 6)
-cur_py_version = sys.version_info
+
+py_36 = (3, 6)
+async_req_version = py_36
 
 RE_RULES = re.compile('(<.*>)')
 
 # List headers that should never be handled by Flask-RESTPlus
 HEADERS_BLACKLIST = ('Content-Length',)
 
-DEFAULT_REPRESENTATIONS = [('application/json', output_json)]
+DEFAULT_REPRESENTATIONS = [('application/json', output_json_fast)]
 
 log = logging.getLogger(__name__)
 
@@ -142,8 +142,10 @@ class Api(object):
             path='/',
         )
         self.ns_paths = dict()
-
-        self.representations = OrderedDict(DEFAULT_REPRESENTATIONS)
+        if py_36 > cur_py_version: #py3.5 or below
+            self.representations = OrderedDict(DEFAULT_REPRESENTATIONS)
+        else:
+            self.representations = dict(DEFAULT_REPRESENTATIONS)
         self.urls = {}
         self.prefix = prefix
         self.default_mediatype = default_mediatype

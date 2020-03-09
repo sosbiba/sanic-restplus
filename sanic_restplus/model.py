@@ -5,7 +5,7 @@ import re
 import warnings
 
 
-from collections import OrderedDict, MutableMapping
+from collections import MutableMapping
 from functools import lru_cache
 
 from .mask import Mask
@@ -14,7 +14,7 @@ from .errors import abort
 from jsonschema import Draft4Validator
 from jsonschema.exceptions import ValidationError
 
-from .utils import not_none
+from .utils import not_none, cur_py_version, ordered_dict_version
 from ._http import HTTPStatus
 
 
@@ -239,16 +239,19 @@ class Model(RawModel, dict, MutableMapping):
     '''
     pass
 
+if ordered_dict_version > cur_py_version:  # python 3.5 or below requires ordereddict
+    from collections import OrderedDict
+    class OrderedModel(RawModel, OrderedDict, MutableMapping):
+        '''
+        A thin wrapper on ordered fields dict to store API doc metadata.
+        Can also be used for response marshalling.
 
-class OrderedModel(RawModel, OrderedDict, MutableMapping):
-    '''
-    A thin wrapper on ordered fields dict to store API doc metadata.
-    Can also be used for response marshalling.
-
-    :param str name: The model public name
-    :param str mask: an optional default model mask
-    '''
-    wrapper = OrderedDict
+        :param str name: The model public name
+        :param str mask: an optional default model mask
+        '''
+        wrapper = OrderedDict
+else:
+    OrderedModel = Model
 
 
 class SchemaModel(ModelBase):

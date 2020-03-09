@@ -233,7 +233,7 @@ class Namespace(object):
         '''
         doc = {
             'responses': {
-                code: (description, [fields]) if as_list else (description, fields)
+                str(code): (description, [fields]) if as_list else (description, fields)
             },
             '__mask__': kwargs.get('mask', True),  # Mask values can't be determined outside app context
         }

@@ -1,9 +1,17 @@
 # -*- coding: utf-8 -*-
 #
+import sys
 import re
-from collections import OrderedDict
 from copy import deepcopy
 from ._http import HTTPStatus
+
+py_36 = (3, 6)
+ordered_dict_version = py_36
+cur_py_version = sys.version_info
+if ordered_dict_version > cur_py_version:  # python 3.5 or below requires ordereddict
+    from collections import OrderedDict
+else:
+    OrderedDict = dict
 
 #copied from sanic router
 REGEX_TYPES = {
@@ -17,7 +25,8 @@ FIRST_CAP_RE = re.compile('(.)([A-Z][a-z]+)')
 ALL_CAP_RE = re.compile('([a-z0-9])([A-Z])')
 
 
-__all__ = ('merge', 'camel_to_dash', 'default_id', 'not_none', 'not_none_sorted', 'unpack')
+__all__ = ('merge', 'camel_to_dash', 'default_id', 'not_none', 'not_none_sorted', 'unpack',
+           'cur_py_version', 'ordered_dict_version', 'OrderedDict')
 
 
 def merge(first, second, _recurse=0):

@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
+
 import asyncio
 import inspect
-from collections import OrderedDict
 from functools import wraps
 
 from .mask import Mask, apply as apply_mask
-from .utils import unpack
+from .utils import unpack, OrderedDict
+
 
 
 def make(cls):
@@ -29,7 +30,7 @@ def marshal(data, fields, envelope=None, skip_none=False, mask=None, ordered=Fal
     :param bool ordered: Wether or not to preserve order
 
 
-    >>> from flask_restplus import fields, marshal
+    >>> from sanic_restplus import fields, marshal
     >>> data = { 'a': 100, 'b': 'foo', 'c': None }
     >>> mfields = { 'a': fields.Raw, 'c': fields.Raw, 'd': fields.Raw }
 

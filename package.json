@@ -1,6 +1,6 @@
 {
   "name": "sanic_restplus",
-  "version": "0.3.5",
+  "version": "0.5.3",
   "description": "Fully featured framework for fast, easy and documented API development with Sanic",
   "repository": "ashleysommer/sanic-restplus",
   "keywords": [
@@ -11,7 +11,7 @@
   "author": "Ashley Sommer",
   "license": "MIT",
   "dependencies": {
-    "swagger-ui-dist": "^3.18.3",
+    "swagger-ui-dist": "^3.25.0",
     "typeface-droid-sans": "0.0.44"
   }
 }
