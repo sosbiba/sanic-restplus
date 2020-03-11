@@ -10,7 +10,7 @@ from itertools import chain
 import logging
 import operator
 import re
-
+import traceback
 
 from functools import wraps, partial, lru_cache, update_wrapper
 from types import MethodType
@@ -851,9 +851,18 @@ class Api(object):
 
         if code >= HTTPStatus.INTERNAL_SERVER_ERROR:
             exc_info = sys.exc_info()
-            if exc_info[1] is None:
-                exc_info = None
-            context.log(logging.ERROR, exc_info)
+            if exc_info[1] is None or exc_info[0] is None:
+                e_type = e.__class__
+                e_value = e
+                e_traceback = e.__traceback__
+            else:
+                e_type, e_value, e_traceback = exc_info
+
+            context.log(logging.ERROR, "Caught Exception: {}".format(str(e_type)))
+            context.log(logging.ERROR, "Detail: {}".format(str(e_value)))
+            tb = traceback.format_tb(e_traceback)
+            tb = "".join(tb)
+            context.log(logging.ERROR, "Traceback:\n{}".format(tb))
 
         elif code == HTTPStatus.NOT_FOUND and app.config.get("ERROR_404_HELP", False) \
                 and include_message_in_response:

@@ -180,7 +180,7 @@ class URL(object):
                 try:
                     socket.getaddrinfo(data['domain'], None)
                 except socket.error:
-                    self.error(value, 'Domain does not exists')
+                    self.error(value, 'Domain does not exist')
         return value
 
     @property
