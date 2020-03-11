@@ -1057,7 +1057,7 @@ class ApiErrorHandler(ErrorHandler):
         :param Exception e: the exception raised while handling the request
         '''
         
-        self.api.error_logger.exception(str(e))
+        self.api.error_logger.exception(str(e1))
 
         if self.api._has_fr_route(request):
             try:
